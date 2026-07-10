@@ -1,0 +1,82 @@
+# Maps city departments to People's Budget tags. Departments not listed here
+# are tagged "Government Operations" by run-budget-data.py.
+#
+# Tag list comes from the People's Budget; "Government Operations" is added
+# as the catch-all for governance/admin departments that don't fit the
+# 17 People's Budget categories.
+
+peoples_budget:
+  Libraries:
+    - Free Library
+
+  Streets:
+    - Streets
+
+  Schools & Early Childhood Education:
+    - Office of Education
+    - Finance-Community College Subsidy
+    - Finance-Hero Scholarship Awards
+    - Finance-School District Contribution
+
+  Housing & Homeless Services:
+    - Office of Homeless Services
+    - Finance-Payment to Housing Trust Fund
+    - Planning and Development
+    - Neighborhood Community Action Centers
+
+  Police:
+    - Police
+    - Citizens Police Oversight Commission
+    - Managing Director-Citizens Police Oversight Commission
+
+  Immigration Services:
+    - Office of Community Empowerment and Opportunity
+
+  Commercial Corridors & Small Businesses:
+    - Commerce
+    - Commerce-Convention Center Subsidy
+    - Commerce-Economic Stimulus
+
+  Public Health Centers:
+    - Public Health
+
+  Public Transit:
+    - Public Property-SEPTA Subsidy
+
+  Parks & Recreation:
+    - Parks and Recreation
+    - Managing Director-Clean & Green
+
+  Youth Services:
+    - Human Services
+
+  Arts & Culture:
+    - Art Museum
+    - Mural Arts Program
+    - Office of Arts and Culture and the Creative Economy
+    - Mayor - Office Of Arts Culture And The Creative Economy
+
+  Courts & the Justice System:
+    - First Judicial District
+    - District Attorney
+    - Sheriff
+    - Prisons
+    - Office of Public Safety
+    - Office Of Public Safety
+    - Office of Public Safety- Office of Prison Oversight
+    - Managing Director-Defenders Association
+    - Managing Director-Public Safety
+
+  Trash & Sanitation:
+    - Sanitation
+    - Sanitation-Disposal
+    - Department Of Sanitation
+
+  Mental Health & Substance Use Services:
+    - Office of Behavioral Health and Intellectual disAbility
+
+  Senior & Disability services: []
+
+  Emergency Services:
+    - Fire
+    - Office of Innovation and Technology-911
