@@ -70,6 +70,15 @@ export default function BudgetTreemap({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  // Clicking a category in the fund-view key jumps to the "By category" view,
+  // drilled into that category.
+  const openCategory = (name: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", "category");
+    params.set("path", encodeURIComponent(name));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
   return (
     <div>
       <div
@@ -118,6 +127,8 @@ export default function BudgetTreemap({
         onPathChange={setDrillPath}
         categoryColor={categoryColor}
         colorByCategoryFromDepth={view === "fund" ? 1 : undefined}
+        nameColor={view === "category" ? categoryColor : undefined}
+        onKeySegmentClick={openCategory}
       />
     </div>
   );

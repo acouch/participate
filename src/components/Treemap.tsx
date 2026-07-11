@@ -55,6 +55,13 @@ function shadeOf(base: string, i: number, count: number): string {
   return hcl(c.h, c.c, l).formatHex();
 }
 
+/** Desaturates a color to gray (keeps its lightness) for de-emphasis. */
+function toGray(fill: string): string {
+  const c = hcl(fill);
+  if (!Number.isFinite(c.l)) return "#cccccc";
+  return hcl(0, 0, c.l).formatHex();
+}
+
 interface TreemapProps {
   data: TreemapDatum[];
   /** Height in pixels. The width fills the container. */
@@ -76,6 +83,17 @@ interface TreemapProps {
   categoryColor?: (category: string) => string;
   /** Drill depth at/after which category coloring kicks in (default off). */
   colorByCategoryFromDepth?: number;
+  /**
+   * Optional override for the top-level tile color scale (by name). Use when
+   * the top-level tiles ARE categories (the "By category" view) so they share
+   * the same colors as the shared category scale.
+   */
+  nameColor?: (name: string) => string;
+  /**
+   * Called when a category segment in the color key is clicked. The parent
+   * uses this to switch to the "By category" view and drill into that category.
+   */
+  onKeySegmentClick?: (category: string) => void;
 }
 
 // Internal hierarchy shape: a synthetic root wrapping the flat top-level data.
@@ -138,6 +156,8 @@ export default function Treemap({
   onPathChange,
   categoryColor,
   colorByCategoryFromDepth,
+  nameColor,
+  onKeySegmentClick,
 }: TreemapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -154,7 +174,11 @@ export default function Treemap({
     datum: TreemapDatum;
     x: number;
     y: number;
+    /** For key segments: the segment's share of the displayed total. */
+    sharePct?: number;
   } | null>(null);
+  // Category being hovered in the color key; tiles not in it are grayed out.
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
   // Walk the path to find the data for the level currently displayed.
   const currentData = useMemo(() => {
@@ -180,8 +204,10 @@ export default function Treemap({
   // A single ordinal color scale seeded from every tile name across the whole
   // tree (in a stable depth-first order), so a tile keeps the same color no
   // matter which drill level it is viewed at — the palette does not restart
-  // from index 0 each time the user clicks into a box.
+  // from index 0 each time the user clicks into a box. When `nameColor` is
+  // supplied (top-level tiles are categories), defer to it instead.
   const color = useMemo(() => {
+    if (nameColor) return nameColor;
     const names: string[] = [];
     const seen = new Set<string>();
     const walk = (nodes: TreemapDatum[]) => {
@@ -195,7 +221,7 @@ export default function Treemap({
     };
     walk(data);
     return ordinalColorScale(names);
-  }, [data]);
+  }, [data, nameColor]);
 
   const leaves = useMemo(() => {
     // Only the current level's tiles are laid out (depth 1), so treat each
@@ -279,19 +305,31 @@ export default function Treemap({
   };
 
   // Proportional color key: aggregate the current level's tiles into colored
-  // groups (by category when category-coloring, else by tile name) sized by
-  // each group's share of the displayed total. Hidden in % change mode, where
-  // colors are a continuous scale rather than discrete groups.
+  // groups by category, sized by each group's share of the displayed total.
+  // Only shown when tiles are actually grouped by category (the "By fund" view
+  // at the department level) — not in % change mode or the "By category" view.
   const keySegments = useMemo(() => {
-    if (colorMode === "change") return [];
-    const groups = new Map<string, { value: number; fill: string }>();
+    if (colorMode === "change" || !useCategoryColor) return [];
+    const groups = new Map<
+      string,
+      { value: number; prior: number; fill: string }
+    >();
     for (const d of currentData) {
-      const label =
-        useCategoryColor && d.category ? d.category : d.name;
+      const label = d.category ?? d.name;
       const fill = fillFor(d);
+      // Back out the prior-year value so the segment can show an aggregate
+      // year-over-year change (prior = value / (1 + pct/100)).
+      const prior =
+        d.percentChange == null
+          ? 0
+          : d.value / (1 + d.percentChange / 100);
       const g = groups.get(label);
-      if (g) g.value += d.value;
-      else groups.set(label, { value: d.value, fill });
+      if (g) {
+        g.value += d.value;
+        g.prior += prior;
+      } else {
+        groups.set(label, { value: d.value, prior, fill });
+      }
     }
     const total = [...groups.values()].reduce((s, g) => s + g.value, 0) || 1;
     return [...groups.entries()]
@@ -300,10 +338,12 @@ export default function Treemap({
         fill: g.fill,
         value: g.value,
         pct: (g.value / total) * 100,
+        percentChange:
+          g.prior > 0 ? ((g.value - g.prior) / g.prior) * 100 : null,
       }))
       .sort((a, b) => b.value - a.value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentData, colorMode, useCategoryColor, shadeByName]);
+  }, [currentData, colorMode, useCategoryColor]);
 
   const buttonStyle: React.CSSProperties = {
     padding: "0.375rem 0.75rem",
@@ -403,9 +443,41 @@ export default function Treemap({
             return (
               <div
                 key={seg.label}
-                title={`${seg.label} — ${valuePrefix}${formatValue(
-                  seg.value,
-                )} (${pctText})`}
+                onMouseEnter={() => setHoveredCategory(seg.label)}
+                onMouseMove={(e) => {
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setHover({
+                    datum: {
+                      name: seg.label,
+                      value: seg.value,
+                      percentChange: seg.percentChange,
+                      category: seg.label,
+                    },
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                    sharePct: seg.pct,
+                  });
+                }}
+                onMouseLeave={() => {
+                  setHoveredCategory(null);
+                  setHover(null);
+                }}
+                onClick={
+                  onKeySegmentClick
+                    ? () => {
+                        setHoveredCategory(null);
+                        setHover(null);
+                        onKeySegmentClick(seg.label);
+                      }
+                    : undefined
+                }
+                role={onKeySegmentClick ? "button" : undefined}
+                title={
+                  onKeySegmentClick
+                    ? `View ${seg.label} by category`
+                    : undefined
+                }
                 style={{
                   flexGrow: seg.pct,
                   flexBasis: 0,
@@ -418,6 +490,10 @@ export default function Treemap({
                   padding: "0 0.4rem",
                   overflow: "hidden",
                   whiteSpace: "nowrap",
+                  cursor: onKeySegmentClick ? "pointer" : "default",
+                  opacity:
+                    hoveredCategory && hoveredCategory !== seg.label ? 0.4 : 1,
+                  transition: "opacity 0.15s",
                 }}
               >
                 {showLabel && (
@@ -452,7 +528,11 @@ export default function Treemap({
         const name = leaf.data.name;
         const w = leaf.x1 - leaf.x0;
         const h = leaf.y1 - leaf.y0;
-        const fill = fillFor(leaf.data);
+        const baseFill = fillFor(leaf.data);
+        // Gray out tiles not in the category hovered in the key.
+        const dimmed =
+          hoveredCategory != null && leaf.data.category !== hoveredCategory;
+        const fill = dimmed ? toGray(baseFill) : baseFill;
         const textColor = readableTextColor(fill);
         const valueLabel = `${valuePrefix}${formatValue(leaf.value ?? 0)}`;
         const pct = leaf.data.percentChange;
@@ -496,7 +576,14 @@ export default function Treemap({
             style={drillable ? { cursor: "pointer" } : undefined}
           >
             <title>{`${name}${titleHint}`}</title>
-            <rect width={w} height={h} fill={fill} rx={2} />
+            <rect
+              width={w}
+              height={h}
+              fill={fill}
+              rx={2}
+              opacity={dimmed ? 0.55 : 1}
+              style={{ transition: "fill 0.15s, opacity 0.15s" }}
+            />
             {showLabel && (
               <text x={PADDING} y={PADDING + 12} fill={textColor}>
                 {lines.map((line, i) => (
@@ -554,6 +641,12 @@ export default function Treemap({
           <div style={{ fontSize: "1.0625rem" }}>
             {valuePrefix}
             {formatValue(hover.datum.value ?? 0)}
+            {hover.sharePct != null && (
+              <span style={{ color: "#bbb" }}>
+                {" "}
+                ({hover.sharePct.toFixed(hover.sharePct < 1 ? 1 : 0)}% of total)
+              </span>
+            )}
           </div>
           <div
             style={{
@@ -563,17 +656,21 @@ export default function Treemap({
           >
             {formatPct(hover.datum.percentChange)} vs prior year
           </div>
-          {useCategoryColor && hover.datum.category && (
-            <div
-              style={{
-                marginTop: "0.35rem",
-                fontSize: "0.875rem",
-                color: "#bbb",
-              }}
-            >
-              {hover.datum.category}
-            </div>
-          )}
+          {/* Show the category line for tiles, but not for key segments
+              (where the name already IS the category). */}
+          {hover.sharePct == null &&
+            useCategoryColor &&
+            hover.datum.category && (
+              <div
+                style={{
+                  marginTop: "0.35rem",
+                  fontSize: "0.875rem",
+                  color: "#bbb",
+                }}
+              >
+                {hover.datum.category}
+              </div>
+            )}
         </div>
       )}
     </div>
