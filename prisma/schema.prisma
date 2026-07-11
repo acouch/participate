@@ -14,3 +14,27 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Budget {
+  id        String @id @default(cuid())
+  createdAt DateTime @default(now()) 
+  updatedAt DateTime @updatedAt
+  data      Json
+
+  @@map("budget")
+  outcomes Outcome[]
+}
+
+model Outcome {
+  id          String @id @default(cuid())
+  createdAt   DateTime @default(now()) 
+  updatedAt   DateTime @updatedAt
+  budgetId    String
+  budget      Budget @relation(fields: [budgetId], references: [id])
+  department  String
+  description String
+}
+
+enum Department {
+  POLICE @map("Police")
+}

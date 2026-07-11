@@ -1,60 +1,23 @@
-export const dynamic = "force-dynamic";
+
+import { getBudget, FISCAL_YEAR } from "@/src/lib/budget";
+
+export const metadata = {
+  title: "Budget Treemap",
+};
 
 export default async function Home() {
-  const { prisma } = await import("../lib/prisma");
-  const formatter = new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-  const users = await prisma.user
-    .findMany({
-      take: 10,
-      orderBy: {
-        createdAt: "desc",
-      },
-    })
-    .catch(() => undefined);
+  const [category, fund] = await Promise.all([
+    getBudget("category"),
+    getBudget("fund"),
+  ]);
 
   return (
-    <main className="shell">
-      <div className="hero">
-        <p className="eyebrow">Next.js + Prisma 7</p>
-        <h1>Users from your database, loaded on the server.</h1>
-        <p className="lede">
-          This page reads from <code>src/app/page.tsx</code> using the Prisma instance in{" "}
-          <code>src/lib/prisma.ts</code>.
-        </p>
+    <main className="lg:px-8 max-w-7x mx-auto px-4 sm:px-6">
+      <div className="lg:pt-8 lg:px-8 max-w-7xl mx-auto pb-10 pt-20 px-4 sm:px-6">
+        <h1>Make your budget for Philly</h1>
+        <p className="py-5">This website allows you to create your own budget for the city.</p>
+      <a className="text-center group inline-flex items-center justify-center rounded-full py-2 px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 bg-blue-800 text-white hover:text-slate-100 hover:bg-blue-600 active:bg-blue-900 active:text-blue-100 focus-visible:outline-blue-800" href="/start"><span>Start</span></a>
       </div>
-
-      <section className="panel">
-        <div className="panelHeader">
-          <h2>Seeded users</h2>
-          <span>{users?.length ?? 0} total</span>
-        </div>
-
-        {!users ? (
-          <p className="empty">
-            Could not query users yet. Run <code>db:migrate</code>, then <code>db:seed</code>,
-            then refresh.
-          </p>
-        ) : users.length === 0 ? (
-          <p className="empty">No users yet. Run <code>db:seed</code> after your first migration.</p>
-        ) : (
-          <ul className="users">
-            {users.map((user) => (
-              <li key={user.id}>
-                <div>
-                  <strong>{user.name ?? "Unnamed user"}</strong>
-                  <p>{user.email}</p>
-                </div>
-                <time dateTime={user.createdAt.toISOString()}>
-                  {formatter.format(user.createdAt)}
-                </time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </main>
   );
 }

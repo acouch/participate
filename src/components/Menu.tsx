@@ -54,9 +54,8 @@ export default function Menu() {
           </svg>
         </a>
         <div className="hidden md:flex md:gap-x-6">
-          <a className="inline-block rounded-lg px-2 py-1 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/#about">About this website</a>
+      <a className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/current">Philly's 2026 approved budget</a>
           <a className="inline-block rounded-lg px-2 py-1 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/#budget">About Philly's Budget</a>
-          <a className="inline-block rounded-lg px-2 py-1 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/#resources">Resources</a>
         </div>
       </div>
       <div className="flex items-center gap-x-5 md:gap-x-8"><div className="hidden md:block">
@@ -73,9 +72,8 @@ export default function Menu() {
       </div>
     </nav>
     <div id="mobile-menu-panel" className="hidden md:hidden mt-4 rounded-lg bg-white py-2 shadow-lg ring-1 ring-slate-900/5">
-      <a className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/#about">About this website</a>
+      <a className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/current">Philly's 2026 approved budget</a>
       <a className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/#budget">About Philly's Budget</a>
-      <a className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900" href="/#resources">Resources</a>
     </div>
   </div>
 </header>
