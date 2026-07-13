@@ -55,6 +55,7 @@ interface DepartmentRowProps {
   pct: number | null;
   zebra: boolean;
   onCommit: (amount: number) => void;
+  onOpen: () => void;
 }
 
 /** One editable department row: inline amount input, commits on blur/Enter. */
@@ -66,6 +67,7 @@ function DepartmentRow({
   pct,
   zebra,
   onCommit,
+  onOpen,
 }: DepartmentRowProps) {
   const [draft, setDraft] = useState(String(value));
 
@@ -104,14 +106,36 @@ function DepartmentRow({
           flexShrink: 0,
         }}
       />
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{name}</span>
+      <button
+        type="button"
+        onClick={onOpen}
+        title={`Edit ${name}`}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          textAlign: "left",
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            fontWeight: 600,
+            fontSize: "0.875rem",
+            textDecoration: "underline",
+            textDecorationColor: "#ddd",
+          }}
+        >
+          {name}
+        </span>
         <span
           style={{ color: "#999", fontSize: "0.75rem", marginLeft: "0.5rem" }}
         >
           {category}
         </span>
-      </span>
+      </button>
       <span
         style={{
           width: "4.5rem",
@@ -209,8 +233,8 @@ export default function BudgetEditor({
   );
   const remaining = totalToSpend - totalSpent;
 
-  const openEditor = (datum: TreemapDatum) => {
-    const dept = departments.find((d) => d.name === datum.name);
+  const openEditor = (deptName: string) => {
+    const dept = departments.find((d) => d.name === deptName);
     if (!dept) return;
     setEditing(dept);
     setDraft(String(allocations[dept.name] ?? baseline[dept.name]));
@@ -286,7 +310,7 @@ export default function BudgetEditor({
         categoryColor={categoryColor}
         forceColorMode="change"
         hideKey
-        onTileClick={openEditor}
+        onTileClick={(datum) => openEditor(datum.name)}
       />
 
       <section style={{ marginTop: "2rem" }}>
@@ -319,6 +343,7 @@ export default function BudgetEditor({
                 pct={pct}
                 zebra={i % 2 === 1}
                 onCommit={(amount) => commitAllocation(d.name, amount)}
+                onOpen={() => openEditor(d.name)}
               />
             );
           })}
