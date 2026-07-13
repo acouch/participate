@@ -102,3 +102,52 @@ export async function getBudget(
 
   return nodes.map((node) => toDatum(node, tagging)).filter((d) => d.value > 0);
 }
+
+/** Fund used for the "make your own budget" editor. */
+export const EDITABLE_FUND = "General Fund";
+/** Uniform raise applied to each department's prior-year budget as the baseline. */
+export const BASELINE_RAISE = 0.018;
+
+/** A department in the editable budget: its category and prior-year amount. */
+export interface EditableDepartment {
+  name: string;
+  category: string;
+  /** Prior fiscal year (2026) budget — the comparison baseline. */
+  priorAmount: number;
+}
+
+export interface EditableFund {
+  /** Total available to spend (the fund's current-year total). */
+  totalToSpend: number;
+  departments: EditableDepartment[];
+}
+
+/**
+ * Returns the General Fund's departments with their prior-year budgets, plus
+ * the total available to spend, for the budget editor. The editor's starting
+ * allocation for each department is priorAmount * (1 + BASELINE_RAISE).
+ */
+export async function getEditableFund(): Promise<EditableFund> {
+  const [raw, tagging] = await Promise.all([
+    readFile(path.join(process.cwd(), "data", "fund.json"), "utf8"),
+    getTagging(),
+  ]);
+  const nodes = JSON.parse(raw) as BudgetNode[];
+  const fund = nodes.find((n) => n.name === EDITABLE_FUND);
+  if (!fund) throw new Error(`Fund "${EDITABLE_FUND}" not found`);
+
+  const departments: EditableDepartment[] = (fund.children ?? [])
+    .map((child) => ({
+      name: child.name,
+      category:
+        tagging.get(normalizeName(child.name)) ?? DEFAULT_CATEGORY,
+      priorAmount: child.gross_cost?.accounts?.[PRIOR_FISCAL_YEAR] ?? 0,
+    }))
+    .filter((d) => d.priorAmount > 0)
+    .sort((a, b) => b.priorAmount - a.priorAmount);
+
+  return {
+    totalToSpend: fund.gross_cost?.accounts?.[FISCAL_YEAR] ?? 0,
+    departments,
+  };
+}

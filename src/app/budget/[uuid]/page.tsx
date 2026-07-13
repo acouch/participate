@@ -1,12 +1,11 @@
-import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import BudgetTreemap from "@/src/components/BudgetTreemap";
-import type { TreemapDatum } from "@/src/components/Treemap";
+import BudgetEditor from "@/src/components/BudgetEditor";
 import { prisma } from "@/src/lib/prisma";
-import { getBudget, FISCAL_YEAR } from "@/src/lib/budget";
+import { getEditableFund, BASELINE_RAISE } from "@/src/lib/budget";
+import { saveAllocations, type BudgetData } from "./actions";
 
 export const metadata = {
-  title: "Budget",
+  title: "Make your own budget",
 };
 
 interface BudgetPageProps {
@@ -16,27 +15,25 @@ interface BudgetPageProps {
 export default async function BudgetPage({ params }: BudgetPageProps) {
   const { uuid } = await params;
 
-  const budget = await prisma.budget.findUnique({ where: { id: uuid } });
+  const [budget, fund] = await Promise.all([
+    prisma.budget.findUnique({ where: { id: uuid } }),
+    getEditableFund(),
+  ]);
   if (!budget) notFound();
 
-  // The saved category data lives on the record; the fund grouping is loaded
-  // from the source dataset so the "By fund" tab keeps working.
-  const category = budget.data as unknown as TreemapDatum[];
-  const fund = await getBudget("fund");
+  // Saved edits, if any (a fresh budget has no allocations yet).
+  const saved = (budget.data as unknown as BudgetData | null)?.allocations ?? {};
 
   return (
-    <main className="lg:px-8 max-w-7xl md:text-center mx-auto px-4 sm:px-6">
-      <div className="hero">
-        <p className="eyebrow">City of Philadelphia</p>
-        <h1>Budget by category and fund</h1>
-        <p className="lede">
-          City budget for FY {FISCAL_YEAR}, sized by expenses. Switch between
-          grouping by category or by fund, and click a tile to drill down.
-        </p>
-      </div>
-      <Suspense fallback={null}>
-        <BudgetTreemap category={category} fund={fund} />
-      </Suspense>
+    <main className="lg:px-8 max-w-7xl mx-auto px-4 sm:px-6">
+      <BudgetEditor
+        uuid={uuid}
+        totalToSpend={fund.totalToSpend}
+        departments={fund.departments}
+        savedAllocations={saved}
+        baselineRaise={BASELINE_RAISE}
+        onSave={saveAllocations}
+      />
     </main>
   );
 }

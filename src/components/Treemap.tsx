@@ -94,6 +94,15 @@ interface TreemapProps {
    * uses this to switch to the "By category" view and drill into that category.
    */
   onKeySegmentClick?: (category: string) => void;
+  /**
+   * Called when a tile is clicked. Takes precedence over drilling — used by the
+   * budget editor to open an edit panel for the clicked department.
+   */
+  onTileClick?: (datum: TreemapDatum) => void;
+  /** Hides the proportional color key even when category coloring is active. */
+  hideKey?: boolean;
+  /** Forces the color mode and hides the mode toggle (e.g. always % change). */
+  forceColorMode?: ColorMode;
 }
 
 // Internal hierarchy shape: a synthetic root wrapping the flat top-level data.
@@ -158,10 +167,16 @@ export default function Treemap({
   colorByCategoryFromDepth,
   nameColor,
   onKeySegmentClick,
+  onTileClick,
+  hideKey,
+  forceColorMode,
 }: TreemapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  const [colorMode, setColorMode] = useState<ColorMode>("category");
+  const [colorModeState, setColorMode] = useState<ColorMode>(
+    forceColorMode ?? "category",
+  );
+  const colorMode = forceColorMode ?? colorModeState;
   // Drill-down path: names of the ancestors from the root down to the
   // currently displayed level. Empty = top level. Controlled by the parent
   // when `path`/`onPathChange` are supplied, otherwise managed internally.
@@ -384,7 +399,13 @@ export default function Treemap({
           fontSize: "0.8rem",
         }}
       >
-        <nav aria-label="Breadcrumb" style={{ color: "#666" }}>
+        <nav
+          aria-label="Breadcrumb"
+          style={{
+            color: "#666",
+            visibility: onTileClick && path.length === 0 ? "hidden" : "visible",
+          }}
+        >
           <button
             type="button"
             style={crumbStyle}
@@ -409,20 +430,22 @@ export default function Treemap({
             </span>
           ))}
         </nav>
-        <button
-          type="button"
-          onClick={() =>
-            setColorMode((m) => (m === "category" ? "change" : "category"))
-          }
-          style={buttonStyle}
-          aria-pressed={colorMode === "change"}
-        >
-          {colorMode === "category"
-            ? "Color by % change"
-            : "Color by category"}
-        </button>
+        {!forceColorMode && (
+          <button
+            type="button"
+            onClick={() =>
+              setColorMode((m) => (m === "category" ? "change" : "category"))
+            }
+            style={buttonStyle}
+            aria-pressed={colorMode === "change"}
+          >
+            {colorMode === "category"
+              ? "Color by % change"
+              : "Color by category"}
+          </button>
+        )}
       </div>
-      {width > 0 && keySegments.length > 0 && (
+      {!hideKey && width > 0 && keySegments.length > 0 && (
         <div
           aria-label="Color key"
           style={{
@@ -555,8 +578,20 @@ export default function Treemap({
         const nameFits = lines.filter((l) => l.bold).length >= nameLines.length;
         const showLabel = w >= 34 && nameFits && lines.length > 0;
         const drillable =
-          Array.isArray(leaf.data.children) && leaf.data.children.length > 0;
-        const titleHint = drillable ? "\n(click to drill down)" : "";
+          !onTileClick &&
+          Array.isArray(leaf.data.children) &&
+          leaf.data.children.length > 0;
+        const clickable = drillable || !!onTileClick;
+        const titleHint = onTileClick
+          ? "\n(click to edit)"
+          : drillable
+            ? "\n(click to drill down)"
+            : "";
+        const handleClick = onTileClick
+          ? () => onTileClick(leaf.data as TreemapDatum)
+          : drillable
+            ? () => setPath([...path, name])
+            : undefined;
         const handleMove = (e: React.MouseEvent) => {
           const rect = containerRef.current?.getBoundingClientRect();
           if (!rect) return;
@@ -570,10 +605,10 @@ export default function Treemap({
           <g
             key={name}
             transform={`translate(${leaf.x0},${leaf.y0})`}
-            onClick={drillable ? () => setPath([...path, name]) : undefined}
+            onClick={handleClick}
             onMouseMove={handleMove}
             onMouseLeave={() => setHover(null)}
-            style={drillable ? { cursor: "pointer" } : undefined}
+            style={clickable ? { cursor: "pointer" } : undefined}
           >
             <title>{`${name}${titleHint}`}</title>
             <rect
