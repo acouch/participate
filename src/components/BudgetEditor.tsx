@@ -10,6 +10,12 @@ export interface EditorDepartment {
   priorAmount: number;
 }
 
+export interface OutcomeItem {
+  id: string;
+  department: string;
+  description: string;
+}
+
 interface BudgetEditorProps {
   uuid: string;
   totalToSpend: number;
@@ -17,11 +23,21 @@ interface BudgetEditorProps {
   /** Persisted allocations (dept name -> amount); empty on a fresh budget. */
   savedAllocations: Record<string, number>;
   baselineRaise: number;
+  /** Outcomes already saved for this budget. */
+  initialOutcomes: OutcomeItem[];
   /** Server action to persist allocations. */
   onSave: (
     uuid: string,
     allocations: Record<string, number>,
   ) => Promise<void>;
+  /** Server action to add an outcome; resolves to the created row. */
+  onAddOutcome: (
+    uuid: string,
+    department: string,
+    description: string,
+  ) => Promise<OutcomeItem | null>;
+  /** Server action to delete an outcome by id. */
+  onDeleteOutcome: (uuid: string, outcomeId: string) => Promise<void>;
 }
 
 const dollars = new Intl.NumberFormat("en-US", {
@@ -47,6 +63,17 @@ const adjustButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const categoryChipStyle = (active: boolean): React.CSSProperties => ({
+  padding: "0.3rem 0.6rem",
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  borderRadius: "999px",
+  border: `1px solid ${active ? "#2563eb" : "#d4d4d4"}`,
+  background: active ? "#eff6ff" : "#fff",
+  color: active ? "#2563eb" : "#444",
+  cursor: "pointer",
+});
+
 interface DepartmentRowProps {
   name: string;
   category: string;
@@ -54,11 +81,15 @@ interface DepartmentRowProps {
   value: number;
   pct: number | null;
   zebra: boolean;
+  outcomeCount: number;
   onCommit: (amount: number) => void;
   onOpen: () => void;
 }
 
-/** One editable department row: inline amount input, commits on blur/Enter. */
+/**
+ * A department row: clicking the name opens the full edit dialog; the amount
+ * can also be edited inline (commits on blur/Enter).
+ */
 function DepartmentRow({
   name,
   category,
@@ -66,6 +97,7 @@ function DepartmentRow({
   value,
   pct,
   zebra,
+  outcomeCount,
   onCommit,
   onOpen,
 }: DepartmentRowProps) {
@@ -92,7 +124,7 @@ function DepartmentRow({
         alignItems: "center",
         gap: "0.75rem",
         padding: "0.5rem 0.75rem",
-        borderTop: zebra ? "1px solid #f0f0f0" : "1px solid #f0f0f0",
+        borderTop: "1px solid #f0f0f0",
         background: zebra ? "#fafafa" : "#fff",
       }}
     >
@@ -135,6 +167,23 @@ function DepartmentRow({
         >
           {category}
         </span>
+        {outcomeCount > 0 && (
+          <span
+            title={`${outcomeCount} outcome${outcomeCount === 1 ? "" : "s"}`}
+            style={{
+              marginLeft: "0.5rem",
+              padding: "0.05rem 0.4rem",
+              fontSize: "0.7rem",
+              fontWeight: 600,
+              color: "#2563eb",
+              background: "#eff6ff",
+              borderRadius: "999px",
+              verticalAlign: "middle",
+            }}
+          >
+            {outcomeCount} outcome{outcomeCount === 1 ? "" : "s"}
+          </span>
+        )}
       </button>
       <span
         style={{
@@ -179,7 +228,10 @@ export default function BudgetEditor({
   departments,
   savedAllocations,
   baselineRaise,
+  initialOutcomes,
   onSave,
+  onAddOutcome,
+  onDeleteOutcome,
 }: BudgetEditorProps) {
   // Starting allocation per department: prior year * (1 + baseline raise),
   // unless the saved budget already has an edited amount.
@@ -198,6 +250,49 @@ export default function BudgetEditor({
   const [draft, setDraft] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  // List UI state: the "All departments" section is a single accordion that
+  // starts closed, plus an active category filter (null = show all).
+  // Filtering the list does NOT affect the chart.
+  const [listOpen, setListOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+
+  const [outcomes, setOutcomes] = useState<OutcomeItem[]>(initialOutcomes);
+
+  // Outcomes grouped by department for quick lookup (badge + modal list).
+  const outcomesByDept = useMemo(() => {
+    const map = new Map<string, OutcomeItem[]>();
+    for (const o of outcomes) {
+      const list = map.get(o.department) ?? [];
+      list.push(o);
+      map.set(o.department, list);
+    }
+    return map;
+  }, [outcomes]);
+
+  const addOutcome = (department: string, description: string) => {
+    const text = description.trim();
+    if (!text) return;
+    // Optimistic: show immediately with a temporary id, reconcile on save.
+    const tempId = `temp-${department}-${outcomes.length}-${text.length}`;
+    const optimistic: OutcomeItem = { id: tempId, department, description: text };
+    setOutcomes((prev) => [...prev, optimistic]);
+    startTransition(async () => {
+      const saved = await onAddOutcome(uuid, department, text);
+      if (saved) {
+        setOutcomes((prev) =>
+          prev.map((o) => (o.id === tempId ? saved : o)),
+        );
+      } else {
+        setOutcomes((prev) => prev.filter((o) => o.id !== tempId));
+      }
+    });
+  };
+
+  const removeOutcome = (id: string) => {
+    setOutcomes((prev) => prev.filter((o) => o.id !== id));
+    startTransition(() => onDeleteOutcome(uuid, id));
+  };
+
   const priorByName = useMemo(() => {
     const map: Record<string, number> = {};
     for (const d of departments) map[d.name] = d.priorAmount;
@@ -209,6 +304,24 @@ export default function BudgetEditor({
     const names = Array.from(new Set(departments.map((d) => d.category)));
     return ordinalColorScale(names);
   }, [departments]);
+
+  // Distinct categories (sorted) for the list's category key.
+  const categories = useMemo(
+    () =>
+      Array.from(new Set(departments.map((d) => d.category))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [departments],
+  );
+
+  // Departments shown in the list, filtered by the active category (if any).
+  const visibleDepartments = useMemo(
+    () =>
+      categoryFilter
+        ? departments.filter((d) => d.category === categoryFilter)
+        : departments,
+    [departments, categoryFilter],
+  );
 
   // Treemap data: value = current allocation, % change = vs. prior year (2026).
   const data: TreemapDatum[] = useMemo(
@@ -314,41 +427,207 @@ export default function BudgetEditor({
       />
 
       <section style={{ marginTop: "2rem" }}>
-        <h2 style={{ fontSize: "1rem", margin: "0 0 0.75rem" }}>
-          All departments
-        </h2>
-        <ul
+        {/* The whole section is an accordion, closed by default. */}
+        <button
+          type="button"
+          onClick={() => setListOpen((o) => !o)}
+          aria-expanded={listOpen}
           style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            border: "1px solid #e5e5e5",
-            borderRadius: "0.5rem",
-            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            width: "100%",
+            padding: "0.5rem 0",
+            background: "none",
+            border: "none",
+            borderBottom: "1px solid #e5e5e5",
+            cursor: "pointer",
+            font: "inherit",
+            textAlign: "left",
           }}
         >
-          {departments.map((d, i) => {
-            const value = allocations[d.name] ?? baseline[d.name];
-            const pct =
-              d.priorAmount > 0
-                ? ((value - d.priorAmount) / d.priorAmount) * 100
-                : null;
-            return (
-              <DepartmentRow
-                key={d.name}
-                name={d.name}
-                category={d.category}
-                color={categoryColor(d.category)}
-                value={value}
-                pct={pct}
-                zebra={i % 2 === 1}
-                onCommit={(amount) => commitAllocation(d.name, amount)}
-                onOpen={() => openEditor(d.name)}
-              />
-            );
-          })}
-        </ul>
+          <span
+            aria-hidden
+            style={{
+              transform: listOpen ? "rotate(90deg)" : "none",
+              transition: "transform 0.15s",
+              color: "#999",
+              fontSize: "0.8rem",
+            }}
+          >
+            ▶
+          </span>
+          <span style={{ fontSize: "1rem", fontWeight: 600 }}>
+            All departments
+          </span>
+          <span style={{ color: "#999", fontSize: "0.8rem" }}>
+            ({departments.length})
+          </span>
+        </button>
+
+        {listOpen && (
+          <div style={{ marginTop: "0.75rem" }}>
+            {/* Category key — click to filter the list (chart is unaffected). */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.4rem",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCategoryFilter(null)}
+                aria-pressed={categoryFilter === null}
+                style={categoryChipStyle(categoryFilter === null)}
+              >
+                All ({departments.length})
+              </button>
+              {categories.map((cat) => {
+                const count = departments.filter(
+                  (d) => d.category === cat,
+                ).length;
+                const active = categoryFilter === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategoryFilter(active ? null : cat)}
+                    aria-pressed={active}
+                    style={categoryChipStyle(active)}
+                  >
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 3,
+                        background: categoryColor(cat),
+                        display: "inline-block",
+                        marginRight: "0.4rem",
+                        verticalAlign: "middle",
+                      }}
+                    />
+                    {cat} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            <ul
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+                border: "1px solid #e5e5e5",
+                borderRadius: "0.5rem",
+                overflow: "hidden",
+              }}
+            >
+              {visibleDepartments.map((d, i) => {
+                const value = allocations[d.name] ?? baseline[d.name];
+                const pct =
+                  d.priorAmount > 0
+                    ? ((value - d.priorAmount) / d.priorAmount) * 100
+                    : null;
+                return (
+                  <DepartmentRow
+                    key={d.name}
+                    name={d.name}
+                    category={d.category}
+                    color={categoryColor(d.category)}
+                    value={value}
+                    pct={pct}
+                    zebra={i % 2 === 1}
+                    outcomeCount={(outcomesByDept.get(d.name) ?? []).length}
+                    onCommit={(amount) => commitAllocation(d.name, amount)}
+                    onOpen={() => openEditor(d.name)}
+                  />
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </section>
+
+      {outcomes.length > 0 && (
+        <section style={{ marginTop: "2rem" }}>
+          <h2 style={{ fontSize: "1rem", margin: "0 0 0.75rem" }}>
+            Your outcomes
+          </h2>
+          <ul
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "grid",
+              gap: "0.5rem",
+            }}
+          >
+            {outcomes.map((o) => (
+              <li
+                key={o.id}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "0.75rem",
+                  padding: "0.625rem 0.75rem",
+                  border: "1px solid #eee",
+                  borderRadius: "0.375rem",
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 3,
+                    marginTop: 4,
+                    background: categoryColor(
+                      priorByName[o.department] !== undefined
+                        ? departments.find((d) => d.name === o.department)
+                            ?.category ?? ""
+                        : "",
+                    ),
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                    {o.department}
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      color: "#444",
+                      fontSize: "0.85rem",
+                      marginTop: "0.15rem",
+                    }}
+                  >
+                    {o.description}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeOutcome(o.id)}
+                  aria-label={`Delete outcome for ${o.department}`}
+                  style={{
+                    border: "none",
+                    background: "none",
+                    color: "#999",
+                    cursor: "pointer",
+                    fontSize: "1rem",
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {editing && (
         <div
@@ -489,6 +768,12 @@ export default function BudgetEditor({
                 : ""}
             </button>
 
+            <OutcomesEditor
+              outcomes={outcomesByDept.get(editing.name) ?? []}
+              onAdd={(text) => addOutcome(editing.name, text)}
+              onDelete={removeOutcome}
+            />
+
             <div
               style={{
                 display: "flex",
@@ -542,6 +827,116 @@ export default function BudgetEditor({
           Saving…
         </p>
       )}
+    </div>
+  );
+}
+
+interface OutcomesEditorProps {
+  outcomes: OutcomeItem[];
+  onAdd: (description: string) => void;
+  onDelete: (id: string) => void;
+}
+
+/** Outcomes section inside the edit modal: existing list + add form. */
+function OutcomesEditor({ outcomes, onAdd, onDelete }: OutcomesEditorProps) {
+  const [text, setText] = useState("");
+
+  const submit = () => {
+    if (!text.trim()) return;
+    onAdd(text);
+    setText("");
+  };
+
+  return (
+    <div style={{ marginTop: "1.25rem" }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: "0.8rem",
+          fontWeight: 600,
+          marginBottom: "0.35rem",
+        }}
+      >
+        Outcomes of this change
+      </label>
+
+      {outcomes.length > 0 && (
+        <ul
+          style={{
+            listStyle: "none",
+            margin: "0 0 0.5rem",
+            padding: 0,
+            display: "grid",
+            gap: "0.35rem",
+          }}
+        >
+          {outcomes.map((o) => (
+            <li
+              key={o.id}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.5rem",
+                fontSize: "0.85rem",
+                background: "#f6f6f6",
+                borderRadius: "0.375rem",
+                padding: "0.4rem 0.5rem",
+              }}
+            >
+              <span style={{ flex: 1 }}>{o.description}</span>
+              <button
+                type="button"
+                onClick={() => onDelete(o.id)}
+                aria-label="Delete outcome"
+                style={{
+                  border: "none",
+                  background: "none",
+                  color: "#999",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div style={{ display: "flex", gap: "0.4rem" }}>
+        <input
+          type="text"
+          value={text}
+          placeholder="e.g. Hire 50 more officers"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          style={{
+            flex: 1,
+            padding: "0.45rem 0.6rem",
+            fontSize: "0.85rem",
+            border: "1px solid #d4d4d4",
+            borderRadius: "0.375rem",
+          }}
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!text.trim()}
+          style={{
+            ...adjustButtonStyle,
+            opacity: text.trim() ? 1 : 0.5,
+            cursor: text.trim() ? "pointer" : "not-allowed",
+          }}
+        >
+          Add
+        </button>
+      </div>
     </div>
   );
 }

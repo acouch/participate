@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import BudgetEditor from "@/src/components/BudgetEditor";
 import { prisma } from "@/src/lib/prisma";
 import { getEditableFund, BASELINE_RAISE } from "@/src/lib/budget";
-import { saveAllocations, type BudgetData } from "./actions";
+import {
+  saveAllocations,
+  addOutcome,
+  deleteOutcome,
+  type BudgetData,
+} from "./actions";
 
 export const metadata = {
   title: "Make your own budget",
@@ -16,7 +21,15 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   const { uuid } = await params;
 
   const [budget, fund] = await Promise.all([
-    prisma.budget.findUnique({ where: { id: uuid } }),
+    prisma.budget.findUnique({
+      where: { id: uuid },
+      include: {
+        outcomes: {
+          select: { id: true, department: true, description: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    }),
     getEditableFund(),
   ]);
   if (!budget) notFound();
@@ -32,7 +45,10 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
         departments={fund.departments}
         savedAllocations={saved}
         baselineRaise={BASELINE_RAISE}
+        initialOutcomes={budget.outcomes}
         onSave={saveAllocations}
+        onAddOutcome={addOutcome}
+        onDeleteOutcome={deleteOutcome}
       />
     </main>
   );
