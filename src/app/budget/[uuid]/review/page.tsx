@@ -6,17 +6,23 @@ import {
   BASELINE_RAISE,
   FISCAL_YEAR,
 } from "@/src/lib/budget";
-import { type BudgetData } from "./actions";
+import {
+  saveIntro,
+  submitBudget,
+  addOutcome,
+  deleteOutcome,
+  type BudgetData,
+} from "../actions";
 
 export const metadata = {
-  title: "Proposed budget",
+  title: "Review your budget",
 };
 
-interface BudgetPageProps {
+interface ReviewPageProps {
   params: Promise<{ uuid: string }>;
 }
 
-export default async function BudgetPage({ params }: BudgetPageProps) {
+export default async function ReviewPage({ params }: ReviewPageProps) {
   const { uuid } = await params;
 
   const [budget, fund] = await Promise.all([
@@ -35,11 +41,13 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
 
   const data = budget.data as unknown as BudgetData | null;
 
-  // The bare URL is the final, submitted view. If not yet submitted, send the
-  // user back to the editor.
-  if (!data?.submittedAt) redirect(`/budget/${uuid}/edit`);
+  // Once submitted, the budget is locked — the review page is no longer
+  // available; send to the final view.
+  if (data?.submittedAt) redirect(`/budget/${uuid}`);
 
-  const allocations = data.allocations ?? {};
+  const allocations = data?.allocations ?? {};
+
+  // Department line items: current allocation (or baseline) + change vs 2026.
   const lineItems = fund.departments.map((d) => {
     const baselineAmount = Math.round(d.priorAmount * (1 + BASELINE_RAISE));
     const amount = allocations[d.name] ?? baselineAmount;
@@ -59,16 +67,19 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   return (
     <main className="lg:px-8 max-w-4xl mx-auto px-4 sm:px-6">
       <BudgetReview
-        readOnly
         uuid={uuid}
         fiscalYear={FISCAL_YEAR}
         totalToSpend={fund.totalToSpend}
-        name={data.name ?? ""}
-        tagline={data.tagline ?? ""}
-        additionalInfo={data.additionalInfo ?? ""}
-        submittedAt={data.submittedAt}
+        name={data?.name ?? ""}
+        tagline={data?.tagline ?? ""}
+        additionalInfo={data?.additionalInfo ?? ""}
+        submittedAt={data?.submittedAt ?? null}
         lineItems={lineItems}
         outcomes={budget.outcomes}
+        onSaveIntro={saveIntro}
+        onSubmit={submitBudget}
+        onAddOutcome={addOutcome}
+        onDeleteOutcome={deleteOutcome}
       />
     </main>
   );

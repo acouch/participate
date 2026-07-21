@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Menu from "../components/Menu";
+import Menu from "@/src/components/Menu";
+import Footer from "@/src/components/Footer";
 
 export const metadata: Metadata = {
   title: "participate",
@@ -14,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body><Menu />{children}</body>
+      <body><Menu />{children}<Footer/></body>
     </html>
   );
 }

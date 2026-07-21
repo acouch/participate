@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import Treemap, { type TreemapDatum } from "@/src/components/Treemap";
 import { ordinalColorScale } from "@/src/lib/colors";
 
@@ -22,6 +23,10 @@ interface BudgetEditorProps {
   departments: EditorDepartment[];
   /** Persisted allocations (dept name -> amount); empty on a fresh budget. */
   savedAllocations: Record<string, number>;
+  /** The user's saved mayoral / project name; empty until they set it. */
+  savedName: string;
+  /** What the budget delivers; empty until they set it. */
+  savedTagline: string;
   baselineRaise: number;
   /** Outcomes already saved for this budget. */
   initialOutcomes: OutcomeItem[];
@@ -29,6 +34,11 @@ interface BudgetEditorProps {
   onSave: (
     uuid: string,
     allocations: Record<string, number>,
+  ) => Promise<void>;
+  /** Server action to save the intro fields (name and/or tagline). */
+  onSaveIntro: (
+    uuid: string,
+    fields: { name?: string; tagline?: string },
   ) => Promise<void>;
   /** Server action to add an outcome; resolves to the created row. */
   onAddOutcome: (
@@ -82,14 +92,10 @@ interface DepartmentRowProps {
   pct: number | null;
   zebra: boolean;
   outcomeCount: number;
-  onCommit: (amount: number) => void;
   onOpen: () => void;
 }
 
-/**
- * A department row: clicking the name opens the full edit dialog; the amount
- * can also be edited inline (commits on blur/Enter).
- */
+/** A department row: clicking anywhere opens the edit dialog. */
 function DepartmentRow({
   name,
   category,
@@ -98,126 +104,84 @@ function DepartmentRow({
   pct,
   zebra,
   outcomeCount,
-  onCommit,
   onOpen,
 }: DepartmentRowProps) {
-  const [draft, setDraft] = useState(String(value));
-
-  // Keep the input in sync when the value changes elsewhere (e.g. the modal).
-  useEffect(() => {
-    setDraft(String(value));
-  }, [value]);
-
-  const commit = () => {
-    const amount = Number(draft);
-    if (Number.isFinite(amount) && Math.round(amount) !== value) {
-      onCommit(amount);
-    } else {
-      setDraft(String(value)); // revert invalid input
-    }
-  };
-
   return (
-    <li
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "0.75rem",
-        padding: "0.5rem 0.75rem",
-        borderTop: "1px solid #f0f0f0",
-        background: zebra ? "#fafafa" : "#fff",
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 12,
-          height: 12,
-          borderRadius: 3,
-          background: color,
-          flexShrink: 0,
-        }}
-      />
+    <li style={{ borderTop: "1px solid #f0f0f0" }}>
       <button
         type="button"
         onClick={onOpen}
         title={`Edit ${name}`}
         style={{
-          flex: 1,
-          minWidth: 0,
-          textAlign: "left",
-          background: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          width: "100%",
+          padding: "0.6rem 0.75rem",
+          background: zebra ? "#fafafa" : "#fff",
           border: "none",
-          padding: 0,
+          textAlign: "left",
           cursor: "pointer",
+          font: "inherit",
         }}
       >
+        <span
+          aria-hidden
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 3,
+            background: color,
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{name}</span>
+          <span
+            style={{ color: "#999", fontSize: "0.75rem", marginLeft: "0.5rem" }}
+          >
+            {category}
+          </span>
+          {outcomeCount > 0 && (
+            <span
+              title={`${outcomeCount} outcome${outcomeCount === 1 ? "" : "s"}`}
+              style={{
+                marginLeft: "0.5rem",
+                padding: "0.05rem 0.4rem",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                color: "#2563eb",
+                background: "#eff6ff",
+                borderRadius: "999px",
+                verticalAlign: "middle",
+              }}
+            >
+              {outcomeCount} outcome{outcomeCount === 1 ? "" : "s"}
+            </span>
+          )}
+        </span>
         <span
           style={{
+            width: "4.5rem",
+            textAlign: "right",
+            fontSize: "0.8rem",
             fontWeight: 600,
-            fontSize: "0.875rem",
-            textDecoration: "underline",
-            textDecorationColor: "#ddd",
+            color: pctTextColor(pct),
           }}
         >
-          {name}
+          {pct == null ? "—" : signedPct(pct)}
         </span>
         <span
-          style={{ color: "#999", fontSize: "0.75rem", marginLeft: "0.5rem" }}
+          style={{
+            width: "9rem",
+            textAlign: "right",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+          }}
         >
-          {category}
+          {dollars.format(value)}
         </span>
-        {outcomeCount > 0 && (
-          <span
-            title={`${outcomeCount} outcome${outcomeCount === 1 ? "" : "s"}`}
-            style={{
-              marginLeft: "0.5rem",
-              padding: "0.05rem 0.4rem",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-              color: "#2563eb",
-              background: "#eff6ff",
-              borderRadius: "999px",
-              verticalAlign: "middle",
-            }}
-          >
-            {outcomeCount} outcome{outcomeCount === 1 ? "" : "s"}
-          </span>
-        )}
       </button>
-      <span
-        style={{
-          width: "4.5rem",
-          textAlign: "right",
-          fontSize: "0.8rem",
-          fontWeight: 600,
-          color: pctTextColor(pct),
-        }}
-      >
-        {pct == null ? "—" : signedPct(pct)}
-      </span>
-      <span style={{ color: "#888", fontSize: "0.9rem" }}>$</span>
-      <input
-        type="number"
-        min={0}
-        step={1000000}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          if (e.key === "Escape") setDraft(String(value));
-        }}
-        aria-label={`Amount for ${name}`}
-        style={{
-          width: "9rem",
-          padding: "0.35rem 0.5rem",
-          fontSize: "0.85rem",
-          textAlign: "right",
-          border: "1px solid #d4d4d4",
-          borderRadius: "0.375rem",
-        }}
-      />
     </li>
   );
 }
@@ -227,9 +191,12 @@ export default function BudgetEditor({
   totalToSpend,
   departments,
   savedAllocations,
+  savedName,
+  savedTagline,
   baselineRaise,
   initialOutcomes,
   onSave,
+  onSaveIntro,
   onAddOutcome,
   onDeleteOutcome,
 }: BudgetEditorProps) {
@@ -242,6 +209,15 @@ export default function BudgetEditor({
     }
     return map;
   }, [departments, baselineRaise]);
+
+  // Funds left after the uniform baseline raise is applied to every department
+  // (shown in the welcome copy before any editing).
+  const baselineRemaining = useMemo(
+    () =>
+      totalToSpend -
+      Object.values(baseline).reduce((s, v) => s + v, 0),
+    [totalToSpend, baseline],
+  );
 
   const [allocations, setAllocations] = useState<Record<string, number>>(
     () => ({ ...baseline, ...savedAllocations }),
@@ -291,6 +267,39 @@ export default function BudgetEditor({
   const removeOutcome = (id: string) => {
     setOutcomes((prev) => prev.filter((o) => o.id !== id));
     startTransition(() => onDeleteOutcome(uuid, id));
+  };
+
+  // Multi-step welcome. Steps 1 (name) and 2 (tagline) collect + persist input;
+  // steps 3–6 are informational onboarding. `started` = the chart is shown.
+  // A returning user (name + tagline already saved) skips the whole flow.
+  const WELCOME_STEPS = 6;
+  const [name, setName] = useState(savedName);
+  const [tagline, setTagline] = useState(savedTagline);
+  const [started, setStarted] = useState(Boolean(savedName && savedTagline));
+  const [step, setStep] = useState(savedName ? 2 : 1);
+  const [nameDraft, setNameDraft] = useState(savedName);
+  const [taglineDraft, setTaglineDraft] = useState(savedTagline);
+
+  const submitName = () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    setName(trimmed);
+    setStep(2);
+    startTransition(() => onSaveIntro(uuid, { name: trimmed }));
+  };
+
+  const submitTagline = () => {
+    const trimmed = taglineDraft.trim();
+    if (!trimmed) return;
+    setTagline(trimmed);
+    setStep(3); // continue to the informational steps
+    startTransition(() => onSaveIntro(uuid, { tagline: trimmed }));
+  };
+
+  // Advance through the informational steps; the last one reveals the chart.
+  const nextStep = () => {
+    if (step >= WELCOME_STEPS) setStarted(true);
+    else setStep((s) => s + 1);
   };
 
   const priorByName = useMemo(() => {
@@ -362,8 +371,19 @@ export default function BudgetEditor({
     startTransition(() => onSave(uuid, next));
   };
 
+  // Does the modal's draft change the department's currently-saved amount?
+  const editingChanged = editing
+    ? Math.round(Number(draft) || 0) !==
+      (allocations[editing.name] ?? baseline[editing.name])
+    : false;
+  // An outcome is required to save a funding change.
+  const editingHasOutcome = editing
+    ? (outcomesByDept.get(editing.name)?.length ?? 0) > 0
+    : false;
+  const editingNeedsOutcome = editingChanged && !editingHasOutcome;
+
   const applyEdit = () => {
-    if (!editing) return;
+    if (!editing || editingNeedsOutcome) return;
     commitAllocation(editing.name, Number(draft));
     setEditing(null);
   };
@@ -390,11 +410,199 @@ export default function BudgetEditor({
     setDraft(String(Math.max(0, Math.round(remainingForEditing))));
   };
 
+  // Welcome flow — the chart stays hidden until both steps are complete.
+  if (!started) {
+    const nextButton = (onClick: () => void, enabled: boolean) => (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!enabled}
+        style={{
+          padding: "0.6rem 1.25rem",
+          fontSize: "1rem",
+          fontWeight: 600,
+          border: "none",
+          borderRadius: "0.5rem",
+          background: "#2563eb",
+          color: "#fff",
+          cursor: enabled ? "pointer" : "not-allowed",
+          opacity: enabled ? 1 : 0.5,
+        }}
+      >
+        Next
+      </button>
+    );
+
+    return (
+      <div className="hero" style={{ maxWidth: "36rem", padding: "1rem 0" }}>
+        <p className="eyebrow">City of Philadelphia</p>
+
+        {step === 1 ? (
+          <>
+            <h1>Welcome</h1>
+            <p className="lede" style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+              This is your chance to propose Philly&rsquo;s budget. This tool
+              imagines you have the power of the mayor to propose how Philly
+              will spend the General Fund, the discretionary part of
+              Philly&rsquo;s money.
+            </p>
+            <p
+              className="lede"
+              style={{
+                fontSize: "1rem",
+                lineHeight: 1.6,
+                marginTop: "0.75rem",
+              }}
+            >
+              You have <strong>{dollars.format(totalToSpend)}</strong> for
+              fiscal year 2027, which started July 1, 2026.
+            </p>
+
+            <label
+              htmlFor="mayoral-name"
+              style={{
+                display: "block",
+                fontWeight: 600,
+                fontSize: "0.9rem",
+                margin: "1.5rem 0 0.4rem",
+              }}
+            >
+              What is your mayoral or project name?
+            </label>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                id="mayoral-name"
+                type="text"
+                value={nameDraft}
+                autoFocus
+                placeholder="e.g. Mayor Smith's Plan"
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitName();
+                }}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem 0.75rem",
+                  fontSize: "1rem",
+                  border: "1px solid #d4d4d4",
+                  borderRadius: "0.5rem",
+                }}
+              />
+              {nextButton(submitName, Boolean(nameDraft.trim()))}
+            </div>
+          </>
+        ) : step === 2 ? (
+          <>
+            <h1>{name}</h1>
+            <p className="lede" style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+              Philly&rsquo;s budget is a moral document, a fiscal opus, a call
+              to arms, and a promise to our future selves.
+            </p>
+
+            <label
+              htmlFor="budget-tagline"
+              style={{
+                display: "block",
+                fontWeight: 600,
+                fontSize: "0.9rem",
+                margin: "1.5rem 0 0.4rem",
+              }}
+            >
+              What does your budget deliver?
+            </label>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                id="budget-tagline"
+                type="text"
+                value={taglineDraft}
+                autoFocus
+                placeholder="e.g. Clean & Green"
+                onChange={(e) => setTaglineDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitTagline();
+                }}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem 0.75rem",
+                  fontSize: "1rem",
+                  border: "1px solid #d4d4d4",
+                  borderRadius: "0.5rem",
+                }}
+              />
+              {nextButton(submitTagline, Boolean(taglineDraft.trim()))}
+            </div>
+            <p
+              style={{
+                fontSize: "0.8rem",
+                color: "#888",
+                lineHeight: 1.6,
+                marginTop: "0.75rem",
+              }}
+            >
+              Parker had &ldquo;Clean &amp; Green&rdquo; and &ldquo;One
+              Philly,&rdquo; Roosevelt had &ldquo;A chicken in every pot and
+              prosperity,&rdquo; Rizzo had &ldquo;I&rsquo;m an awful
+              person.&rdquo;
+            </p>
+          </>
+        ) : (
+          <>
+            <h1>{step === 6 ? "WAIT…" : name}</h1>
+            {step === 3 && (
+              <p className="lede" style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+                {name}, you have{" "}
+                <strong>{dollars.format(totalToSpend)}</strong> to spend, which
+                is the same as Parker&rsquo;s proposed 2027 budget. This is a
+                1.8% increase above FY2026. That has been applied to all of the
+                departments, with{" "}
+                <strong>{dollars.format(baselineRemaining)}</strong> left over
+                to allocate. Click on a department to add or remove funds.
+              </p>
+            )}
+            {step === 4 && (
+              <p className="lede" style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+                Each of your decisions has outcomes. When you add or remove
+                funding, you need to include those.
+              </p>
+            )}
+            {step === 5 && (
+              <p className="lede" style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+                Once you are done, you can review your budget before it is set
+                in PDF.
+              </p>
+            )}
+            {step === 6 && (
+              <p className="lede" style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+                Can&rsquo;t a mayor propose new funds? Yes, that functionality
+                will be added soon.
+              </p>
+            )}
+            <div style={{ marginTop: "1.5rem" }}>
+              {nextButton(nextStep, true)}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="hero" style={{ marginBottom: "1.5rem" }}>
-        <p className="eyebrow">City of Philadelphia</p>
+        <p className="eyebrow">City of Philadelphia{name ? ` · ${name}` : ""}</p>
         <h1>Make your own budget</h1>
+        {tagline && (
+          <p
+            className="lede"
+            style={{
+              fontStyle: "italic",
+              color: "#555",
+              margin: "0.25rem 0 0.5rem",
+            }}
+          >
+            “{tagline}”
+          </p>
+        )}
         <p className="lede" style={{ fontSize: "1.5rem", fontWeight: 700 }}>
           You have {dollars.format(totalToSpend)} to spend through the General
           Fund.
@@ -415,6 +623,29 @@ export default function BudgetEditor({
             (allocated {dollars.format(totalSpent)})
           </span>
         </p>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: "0.75rem",
+        }}
+      >
+        <Link
+          href={`/budget/${uuid}/review`}
+          style={{
+            padding: "0.55rem 1.1rem",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            borderRadius: "0.5rem",
+            background: "#2563eb",
+            color: "#fff",
+            textDecoration: "none",
+          }}
+        >
+          Review &amp; submit →
+        </Link>
       </div>
 
       <Treemap
@@ -541,7 +772,6 @@ export default function BudgetEditor({
                     pct={pct}
                     zebra={i % 2 === 1}
                     outcomeCount={(outcomesByDept.get(d.name) ?? []).length}
-                    onCommit={(amount) => commitAllocation(d.name, amount)}
                     onOpen={() => openEditor(d.name)}
                   />
                 );
@@ -772,7 +1002,22 @@ export default function BudgetEditor({
               outcomes={outcomesByDept.get(editing.name) ?? []}
               onAdd={(text) => addOutcome(editing.name, text)}
               onDelete={removeOutcome}
+              required={editingNeedsOutcome}
             />
+
+            {editingNeedsOutcome && (
+              <p
+                role="alert"
+                style={{
+                  margin: "0.5rem 0 0",
+                  fontSize: "0.8rem",
+                  color: "#dc2626",
+                  fontWeight: 600,
+                }}
+              >
+                Add an outcome to explain this funding change before saving.
+              </p>
+            )}
 
             <div
               style={{
@@ -798,6 +1043,12 @@ export default function BudgetEditor({
               <button
                 type="button"
                 onClick={applyEdit}
+                disabled={editingNeedsOutcome}
+                title={
+                  editingNeedsOutcome
+                    ? "Add an outcome before saving this change"
+                    : undefined
+                }
                 style={{
                   padding: "0.5rem 1rem",
                   borderRadius: "0.5rem",
@@ -805,7 +1056,8 @@ export default function BudgetEditor({
                   background: "#2563eb",
                   color: "#fff",
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: editingNeedsOutcome ? "not-allowed" : "pointer",
+                  opacity: editingNeedsOutcome ? 0.5 : 1,
                 }}
               >
                 Save
@@ -835,10 +1087,16 @@ interface OutcomesEditorProps {
   outcomes: OutcomeItem[];
   onAdd: (description: string) => void;
   onDelete: (id: string) => void;
+  required?: boolean;
 }
 
 /** Outcomes section inside the edit modal: existing list + add form. */
-function OutcomesEditor({ outcomes, onAdd, onDelete }: OutcomesEditorProps) {
+function OutcomesEditor({
+  outcomes,
+  onAdd,
+  onDelete,
+  required,
+}: OutcomesEditorProps) {
   const [text, setText] = useState("");
 
   const submit = () => {
@@ -858,6 +1116,7 @@ function OutcomesEditor({ outcomes, onAdd, onDelete }: OutcomesEditorProps) {
         }}
       >
         Outcomes of this change
+        {required && <span style={{ color: "#dc2626" }}> *</span>}
       </label>
 
       {outcomes.length > 0 && (

@@ -2,13 +2,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/src/lib/prisma";
 import { Prisma } from "@/src/generated/prisma/client";
 import { shortId } from "@/src/lib/id";
-import { getBudget } from "@/src/lib/budget";
+import type { BudgetData } from "@/src/app/budget/[uuid]/actions";
 
-// Visiting /start creates a new saved Budget with a 5-character id and
-// redirects to /budget/{id}.
+// Visiting /start creates a new (empty) Budget with a 5-character id and
+// redirects to the editor at /budget/{id}/edit.
 export async function GET() {
-  // Seed the new budget with the current category dataset.
-  const data = await getBudget("category");
+  const data: BudgetData = { allocations: {} };
 
   let id = "";
   // Retry on the rare 5-char id collision (unique primary key violation).
@@ -30,5 +29,5 @@ export async function GET() {
     }
   }
 
-  redirect(`/budget/${id}`);
+  redirect(`/budget/${id}/edit`);
 }
