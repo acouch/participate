@@ -650,6 +650,7 @@ export default function BudgetEditor({
 
       <Treemap
         data={data}
+        view={"fund"}
         valuePrefix="$"
         categoryColor={categoryColor}
         forceColorMode="change"
