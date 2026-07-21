@@ -1,18 +1,13 @@
 
-import { getBudget } from "@/src/lib/budget";
 import Image from "next/image";
 import budgetviz from '@/src/assets/budgetvisual.jpg';
 import Link from "next/link";
 
 export const metadata = {
-  title: "Budget Treemap",
+  title: "Make your own Philly Budget",
 };
 
-export default async function Home() {
-  const [category, fund] = await Promise.all([
-    getBudget("category"),
-    getBudget("fund"),
-  ]);
+export default function Home() {
 
   return (
     <main className="lg:pt-8 lg:px-8 max-w-7xl mx-auto pb-10 pt-20 px-4 sm:px-6">

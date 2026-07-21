@@ -17,12 +17,12 @@ interface BudgetTreemapProps {
 }
 
 const TABS: { key: BudgetView; label: string }[] = [
-  { key: "category", label: "By category" },
   { key: "fund", label: "By fund" },
+  { key: "category", label: "By category" },
 ];
 
 const isView = (v: string | null): v is BudgetView =>
-  v === "category" || v === "fund";
+  v === "fund" || v === "category";
 
 export default function BudgetTreemap({
   category,
@@ -35,7 +35,7 @@ export default function BudgetTreemap({
   // The URL is the source of truth: ?view= selects the dataset (default
   // "category") and ?path= holds the drill-down path (slash-separated names).
   const param = searchParams.get("view");
-  const view: BudgetView = isView(param) ? param : "category";
+  const view: BudgetView = isView(param) ? param : "fund";
   const data = view === "category" ? category : fund;
 
   // A stable color per People's Budget category, derived from the top-level
@@ -121,6 +121,7 @@ export default function BudgetTreemap({
       </div>
       <Treemap
         key={view}
+        view={view}
         data={data}
         valuePrefix="$"
         path={drillPath}

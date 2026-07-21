@@ -103,6 +103,7 @@ interface TreemapProps {
   hideKey?: boolean;
   /** Forces the color mode and hides the mode toggle (e.g. always % change). */
   forceColorMode?: ColorMode;
+  view: "fund" | "category"
 }
 
 // Internal hierarchy shape: a synthetic root wrapping the flat top-level data.
@@ -159,6 +160,7 @@ function wrapText(text: string, maxWidth: number): string[] {
 
 export default function Treemap({
   data,
+  view,
   height = 560,
   valuePrefix = "$",
   path: controlledPath,
@@ -386,8 +388,16 @@ export default function Treemap({
   const pctColor = (pct: number | null | undefined) =>
     pct == null ? "#bbb" : pct > 0 ? "#4ade80" : pct < 0 ? "#f87171" : "#ddd";
 
+  const fundHelp = <><span>The city is funded through over a dozen funding sources, Philadelphia’s <strong>General Fund</strong> being the main operating budget, supported primarily by local taxes like the wage and real estate taxes, while other funds—such as Enterprise Funds, the Grants Fund, and Capital/Special Funds—operate as separate, self-supporting or restricted accounts for specific services. Click on a fund below to explore where the money goes.</span></>
+  const catHelp = <><span>Click on a category below to explore what departments are funded by which funds.</span></>
   return (
     <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
+      <div className="rounded-md mb-4 px-2 py-2 outline-2 text-gray-400 outline-[#1a3cb914] text-left text-sm flex items-start">
+        <svg className="flex-shrink-0 w-4 h-4 mr-1" aria-hidden="true" fill="#b3b3b3" xmlns="http://w3.org" viewBox="0 0 20 20">
+          <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
+        </svg>
+        <div>{view ==="category" ? catHelp : fundHelp }</div>
+      </div>
       <div
         style={{
           marginBottom: "0.75rem",
@@ -411,7 +421,7 @@ export default function Treemap({
             style={crumbStyle}
             onClick={() => setPath([])}
           >
-            All categories
+            {view ==="category" ? "All categories" : "All funds" }
           </button>
           {path.map((name, i) => (
             <span key={name}>

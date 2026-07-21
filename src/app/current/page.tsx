@@ -18,8 +18,7 @@ export default async function TreemapPage() {
         <p className="eyebrow">City of Philadelphia</p>
         <h1>Budget by category and fund</h1>
         <p className="lede">
-          City budget for FY {FISCAL_YEAR}, sized by expenses. Switch between
-          grouping by category or by fund, and click a tile to drill down.
+          City budget for FY {FISCAL_YEAR}, sized by expenses. To learn more about the budget process, visit the <a className="text-[#1a3cb9] underline" href="">People's Budget Office</a>.
         </p>
       </div>
       <Suspense fallback={null}>
