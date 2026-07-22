@@ -79,6 +79,10 @@ export default function BudgetTreemap({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  const fundHelp = <><span>The city is funded through over a dozen funding sources, Philadelphia’s <strong>General Fund</strong> being the main operating budget, supported primarily by local taxes like the wage and real estate taxes, while other funds—such as Enterprise Funds, the Grants Fund, and Capital/Special Funds—operate as separate, self-supporting or restricted accounts for specific services. Click on a fund below to explore where the money goes.</span></>
+  const catHelp = <><span>Click on a category below to explore what departments are funded by which funds.</span></>
+  const help = view === "category" ? catHelp : fundHelp;
+
   return (
     <div>
       <div
@@ -121,6 +125,7 @@ export default function BudgetTreemap({
       </div>
       <Treemap
         key={view}
+        help={help}
         view={view}
         data={data}
         valuePrefix="$"
