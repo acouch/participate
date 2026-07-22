@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Treemap, { type TreemapDatum } from "@/src/components/Treemap";
+import Treemap, { shadeOf, type TreemapDatum } from "@/src/components/Treemap";
+import BudgetNodeList from "@/src/components/budget/BudgetNodeList";
 import { ordinalColorScale } from "@/src/lib/colors";
 import type { BudgetView } from "@/src/lib/budget";
 
@@ -51,6 +52,110 @@ export default function BudgetTreemap({
     .split("/")
     .map(decodeURIComponent)
     .filter(Boolean);
+
+  // The nodes currently displayed in the treemap: walk the drill path down
+  // the dataset and take that level's children (mirrors Treemap's own walk).
+  const currentData = useMemo(() => {
+    let level = data;
+    for (const name of drillPath) {
+      const next = level.find((d) => d.name === name)?.children;
+      if (!next) break;
+      level = next;
+    }
+    return level;
+  }, [data, drillPath]);
+
+  // Ordinal color fallback seeded from every node name across the tree (stable
+  // depth-first order), matching how the treemap colors non-category tiles.
+  const nodeColor = useMemo(() => {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    const walk = (nodes: TreemapDatum[]) => {
+      for (const d of nodes) {
+        if (!seen.has(d.name)) {
+          seen.add(d.name);
+          names.push(d.name);
+        }
+        if (d.children) walk(d.children);
+      }
+    };
+    walk(data);
+    return ordinalColorScale(names);
+  }, [data]);
+
+  // The depth at which tiles are colored by category — must match the value
+  // passed to <Treemap> below (fund view colors departments at depth 1).
+  const colorByCategoryFromDepth = view === "fund" ? 1 : undefined;
+
+  // Treemap's base per-name color scale: the category view passes
+  // nameColor={categoryColor}, so names resolve through categoryColor there;
+  // the fund view uses the ordinal scale.
+  const baseColor = view === "category" ? categoryColor : nodeColor;
+
+  // The color the treemap gives the node we've drilled into (the last path
+  // segment): its category color if it sits at the category-coloring depth,
+  // else its ordinal color. Deeper levels are shaded from this. Mirrors
+  // Treemap's parentColor.
+  const parentColor = useMemo(() => {
+    if (drillPath.length === 0) return null;
+    let level = data;
+    let parent: TreemapDatum | undefined;
+    for (const name of drillPath) {
+      parent = level.find((d) => d.name === name);
+      if (!parent?.children) break;
+      level = parent.children;
+    }
+    if (!parent) return null;
+    const parentDepth = drillPath.length - 1;
+    if (
+      colorByCategoryFromDepth != null &&
+      parentDepth === colorByCategoryFromDepth &&
+      parent.category
+    ) {
+      return categoryColor(parent.category);
+    }
+    return baseColor(parent.name);
+  }, [data, drillPath, categoryColor, baseColor, colorByCategoryFromDepth]);
+
+  // Match each list row's swatch to its treemap tile (mirrors Treemap.fillFor).
+  const useCategoryColor =
+    colorByCategoryFromDepth != null &&
+    drillPath.length === colorByCategoryFromDepth;
+
+  const colorForNode = (node: TreemapDatum) => {
+    // Top level of the category view is colored per-name by category.
+    if (view === "category" && drillPath.length === 0) {
+      return categoryColor(node.name);
+    }
+    if (useCategoryColor && node.category) {
+      return categoryColor(node.category);
+    }
+    // Deeper levels: shade the parent's color light→dark across the sorted
+    // level (currentData is already sorted largest-first, as in the treemap).
+    if (parentColor) {
+      const sorted = [...currentData].sort(
+        (a, b) => (b.value ?? 0) - (a.value ?? 0),
+      );
+      const i = sorted.findIndex((d) => d.name === node.name);
+      return shadeOf(parentColor, i < 0 ? 0 : i, sorted.length);
+    }
+    return baseColor(node.name);
+  };
+
+  // What the current level represents, for the list heading.
+  const listNoun =
+    drillPath.length === 0
+      ? view === "fund"
+        ? "funds"
+        : "categories"
+      : drillPath.length === 1
+        ? "departments"
+        : "expenditure type";
+
+  const drillInto = (node: TreemapDatum) => {
+    if (!node.children || node.children.length === 0) return;
+    setDrillPath([...drillPath, node.name]);
+  };
 
   const selectView = (next: BudgetView) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -135,6 +240,13 @@ export default function BudgetTreemap({
         colorByCategoryFromDepth={view === "fund" ? 1 : undefined}
         nameColor={view === "category" ? categoryColor : undefined}
         onKeySegmentClick={openCategory}
+      />
+
+      <BudgetNodeList
+        nodes={currentData}
+        noun={listNoun}
+        colorFor={colorForNode}
+        onSelect={drillInto}
       />
     </div>
   );

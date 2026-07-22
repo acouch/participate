@@ -46,7 +46,7 @@ function readableTextColor(fill: string): string {
  * space while keeping the hue. Used so a drilled-in box's children read as
  * tints of the parent's color.
  */
-function shadeOf(base: string, i: number, count: number): string {
+export function shadeOf(base: string, i: number, count: number): string {
   const c = hcl(base);
   if (!Number.isFinite(c.l)) return base;
   // Spread lightness around the base across a readable band.
