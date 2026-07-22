@@ -151,3 +151,96 @@ export async function getEditableFund(): Promise<EditableFund> {
     departments,
   };
 }
+
+/** A node in the fund → department flow graph (for the Sankey chart). */
+export interface FlowNode {
+  /** Stable id (fund name, department name, or `${fund}:__other__`). */
+  id: string;
+  /** Display label. */
+  name: string;
+  /** "fund" for left-column nodes, "department" for right-column nodes. */
+  kind: "fund" | "department";
+  /** People's Budget category (departments only) for coloring. */
+  category?: string;
+}
+
+/** A weighted flow from a fund to a department. */
+export interface FlowLink {
+  source: string;
+  target: string;
+  value: number;
+}
+
+export interface FundFlows {
+  nodes: FlowNode[];
+  links: FlowLink[];
+}
+
+/**
+ * Builds the fund → department flow graph for the Sankey chart. To keep the
+ * right column readable, each fund keeps its `topPerFund` largest departments
+ * and rolls the remaining tail into a single per-fund "Other" node. Department
+ * nodes are shared by name so a department funded by several funds converges.
+ */
+export async function getFundFlows(topPerFund = 6): Promise<FundFlows> {
+  const [raw, tagging] = await Promise.all([
+    readFile(path.join(process.cwd(), "data", "fund.json"), "utf8"),
+    getTagging(),
+  ]);
+  const funds = JSON.parse(raw) as BudgetNode[];
+
+  const nodes = new Map<string, FlowNode>();
+  const links: FlowLink[] = [];
+
+  // Largest funds first so the left column reads top-to-bottom by size.
+  const sortedFunds = [...funds]
+    .map((f) => ({
+      node: f,
+      total: f.gross_cost?.accounts?.[FISCAL_YEAR] ?? 0,
+    }))
+    .filter((f) => f.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  for (const { node: fund } of sortedFunds) {
+    const fundId = fund.name;
+    nodes.set(fundId, { id: fundId, name: fund.name, kind: "fund" });
+
+    const depts = (fund.children ?? [])
+      .map((c) => ({
+        name: c.name,
+        value: c.gross_cost?.accounts?.[FISCAL_YEAR] ?? 0,
+        category: tagging.get(normalizeName(c.name)) ?? DEFAULT_CATEGORY,
+      }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    const kept = depts.slice(0, topPerFund);
+    const tail = depts.slice(topPerFund);
+
+    for (const d of kept) {
+      // Department nodes are shared by name across funds so flows converge.
+      if (!nodes.has(d.name)) {
+        nodes.set(d.name, {
+          id: d.name,
+          name: d.name,
+          kind: "department",
+          category: d.category,
+        });
+      }
+      links.push({ source: fundId, target: d.name, value: d.value });
+    }
+
+    if (tail.length > 0) {
+      const otherId = `${fundId}:__other__`;
+      const otherValue = tail.reduce((s, d) => s + d.value, 0);
+      nodes.set(otherId, {
+        id: otherId,
+        name: `Other (${tail.length} dept${tail.length === 1 ? "" : "s"})`,
+        kind: "department",
+      });
+      links.push({ source: fundId, target: otherId, value: otherValue });
+    }
+  }
+
+  return { nodes: Array.from(nodes.values()), links };
+}

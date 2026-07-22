@@ -1,15 +1,16 @@
 import { Suspense } from "react";
 import BudgetTreemap from "@/src/components/BudgetTreemap";
-import { getBudget, FISCAL_YEAR } from "@/src/lib/budget";
+import { getBudget, getFundFlows, FISCAL_YEAR } from "@/src/lib/budget";
 
 export const metadata = {
   title: "Budget Treemap",
 };
 
 export default async function TreemapPage() {
-  const [category, fund] = await Promise.all([
+  const [category, fund, flows] = await Promise.all([
     getBudget("category"),
     getBudget("fund"),
+    getFundFlows(),
   ]);
 
   return (
@@ -22,7 +23,7 @@ export default async function TreemapPage() {
         </p>
       </div>
       <Suspense fallback={null}>
-        <BudgetTreemap category={category} fund={fund} />
+        <BudgetTreemap category={category} fund={fund} flows={flows} />
       </Suspense>
     </main>
   );

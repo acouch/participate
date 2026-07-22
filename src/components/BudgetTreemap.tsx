@@ -4,8 +4,9 @@ import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Treemap, { shadeOf, type TreemapDatum } from "@/src/components/Treemap";
 import BudgetNodeList from "@/src/components/budget/BudgetNodeList";
+import FundSankey from "@/src/components/budget/FundSankey";
 import { ordinalColorScale } from "@/src/lib/colors";
-import type { BudgetView } from "@/src/lib/budget";
+import type { BudgetView, FundFlows } from "@/src/lib/budget";
 
 // Fallback category for departments not tagged in tagging.yml (mirrors
 // DEFAULT_CATEGORY in budget.ts, kept here to avoid importing the server-only
@@ -15,28 +16,37 @@ const DEFAULT_CATEGORY = "Government Operations";
 interface BudgetTreemapProps {
   category: TreemapDatum[];
   fund: TreemapDatum[];
+  flows: FundFlows;
 }
 
-const TABS: { key: BudgetView; label: string }[] = [
+// UI tabs: "overview" shows the Sankey; the other two select a treemap dataset.
+type TabKey = "overview" | BudgetView;
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "overview", label: "Overview" },
   { key: "fund", label: "By fund" },
   { key: "category", label: "By category" },
 ];
 
-const isView = (v: string | null): v is BudgetView =>
-  v === "fund" || v === "category";
+const isTab = (v: string | null): v is TabKey =>
+  v === "overview" || v === "fund" || v === "category";
 
 export default function BudgetTreemap({
   category,
   fund,
+  flows,
 }: BudgetTreemapProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // The URL is the source of truth: ?view= selects the dataset (default
-  // "category") and ?path= holds the drill-down path (slash-separated names).
+  // The URL is the source of truth: ?view= selects the tab (default "fund")
+  // and ?path= holds the treemap drill-down path (slash-separated names).
   const param = searchParams.get("view");
-  const view: BudgetView = isView(param) ? param : "fund";
+  const tab: TabKey = isTab(param) ? param : "fund";
+  const isOverview = tab === "overview";
+  // For treemap logic, "overview" has no dataset; fall back to "fund".
+  const view: BudgetView = tab === "category" ? "category" : "fund";
   const data = view === "category" ? category : fund;
 
   // A stable color per People's Budget category, derived from the top-level
@@ -157,10 +167,10 @@ export default function BudgetTreemap({
     setDrillPath([...drillPath, node.name]);
   };
 
-  const selectView = (next: BudgetView) => {
+  const selectTab = (next: TabKey) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("view", next);
-    // A path from one dataset is meaningless in the other, so reset it.
+    // A path from one dataset (or the Sankey) is meaningless in another, reset.
     params.delete("path");
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
@@ -200,15 +210,15 @@ export default function BudgetTreemap({
           marginBottom: "1rem",
         }}
       >
-        {TABS.map((tab) => {
-          const active = view === tab.key;
+        {TABS.map((t) => {
+          const active = tab === t.key;
           return (
             <button
-              key={tab.key}
+              key={t.key}
               role="tab"
               type="button"
               aria-selected={active}
-              onClick={() => selectView(tab.key)}
+              onClick={() => selectTab(t.key)}
               style={{
                 padding: "0.5rem 1rem",
                 fontSize: "0.875rem",
@@ -223,31 +233,46 @@ export default function BudgetTreemap({
                 marginBottom: "-1px",
               }}
             >
-              {tab.label}
+              {t.label}
             </button>
           );
         })}
       </div>
-      <Treemap
-        key={view}
-        help={help}
-        view={view}
-        data={data}
-        valuePrefix="$"
-        path={drillPath}
-        onPathChange={setDrillPath}
-        categoryColor={categoryColor}
-        colorByCategoryFromDepth={view === "fund" ? 1 : undefined}
-        nameColor={view === "category" ? categoryColor : undefined}
-        onKeySegmentClick={openCategory}
-      />
 
-      <BudgetNodeList
-        nodes={currentData}
-        noun={listNoun}
-        colorFor={colorForNode}
-        onSelect={drillInto}
-      />
+      {isOverview ? (
+        <>
+          <div className="rounded-md mb-4 px-2 py-2 outline-2 text-gray-400 outline-[#1a3cb914] text-left text-sm flex items-start">
+            <svg className="flex-shrink-0 w-4 h-4 mr-1" aria-hidden="true" fill="#b3b3b3" xmlns="http://w3.org" viewBox="0 0 20 20">
+              <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
+            </svg>
+            <div>This chart shows how each fund flows to the departments it pays for. Each fund shows its largest departments individually; smaller ones are grouped into an “Other” band. Hover a flow for its amount.</div>
+          </div>
+          <FundSankey flows={flows} />
+        </>
+      ) : (
+        <>
+          <Treemap
+            key={view}
+            help={help}
+            view={view}
+            data={data}
+            valuePrefix="$"
+            path={drillPath}
+            onPathChange={setDrillPath}
+            categoryColor={categoryColor}
+            colorByCategoryFromDepth={view === "fund" ? 1 : undefined}
+            nameColor={view === "category" ? categoryColor : undefined}
+            onKeySegmentClick={openCategory}
+          />
+
+          <BudgetNodeList
+            nodes={currentData}
+            noun={listNoun}
+            colorFor={colorForNode}
+            onSelect={drillInto}
+          />
+        </>
+      )}
     </div>
   );
 }
