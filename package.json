@@ -10,6 +10,7 @@
     "vercel-build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "db:view": "prisma studio",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

@@ -35,6 +35,17 @@ model Outcome {
   description String
 }
 
+model Feedback {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  name      String?
+  email     String?
+  message   String
+  path      String?
+
+  @@map("feedback")
+}
+
 enum Department {
   POLICE @map("Police")
 }
