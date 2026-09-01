@@ -65,7 +65,7 @@ export default async function ReviewPage({ params }: ReviewPageProps) {
   });
 
   return (
-    <main className="lg:px-8 max-w-4xl mx-auto px-4 sm:px-6">
+    <main className="lg:px-8 max-w-7xl mx-auto px-4 sm:px-6">
       <BudgetReview
         uuid={uuid}
         fiscalYear={FISCAL_YEAR}

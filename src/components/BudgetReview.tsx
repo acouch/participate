@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Treemap, { type TreemapDatum } from "@/src/components/Treemap";
+import EditableText from "@/src/components/EditableText";
+import { ordinalColorScale } from "@/src/lib/colors";
 import type { OutcomeItem } from "@/src/components/BudgetEditor";
 
 interface LineItem {
@@ -27,6 +30,12 @@ interface BudgetReviewProps {
   outcomes: OutcomeItem[];
   /** Final, submitted view: no editing, no submit button. */
   readOnly?: boolean;
+  /**
+   * True only on the navigation that immediately follows a submit, so the
+   * confirmation banner is shown once to the person who submitted and never to
+   * someone opening the shared link.
+   */
+  justSubmitted?: boolean;
   onSaveIntro?: (
     uuid: string,
     fields: { name?: string; tagline?: string; additionalInfo?: string },
@@ -62,6 +71,7 @@ export default function BudgetReview({
   lineItems,
   outcomes: initialOutcomes,
   readOnly = false,
+  justSubmitted = false,
   onSaveIntro,
   onSubmit,
   onAddOutcome,
@@ -92,10 +102,45 @@ export default function BudgetReview({
     return map;
   }, [outcomes]);
 
-  // Resolved after mount to avoid a server/client hydration mismatch.
+  // The same chart the editor shows, sized by allocation and colored by change
+  // vs. FY2026 (the +/- view).
+  const treemapData: TreemapDatum[] = useMemo(
+    () =>
+      lineItems.map((d) => ({
+        name: d.name,
+        value: d.amount,
+        category: d.category,
+        percentChange: d.percentChange,
+      })),
+    [lineItems],
+  );
+
+  // Stable color per category — unused in "change" mode, but Treemap wants it.
+  const categoryColor = useMemo(
+    () => ordinalColorScale(Array.from(new Set(lineItems.map((d) => d.category)))),
+    [lineItems],
+  );
+
+  // Collapsed by default so the written report leads; opened on print so the
+  // chart is never silently dropped from a PDF.
+  const [chartOpen, setChartOpen] = useState(false);
+  useEffect(() => {
+    const before = () => setChartOpen(true);
+    window.addEventListener("beforeprint", before);
+    return () => window.removeEventListener("beforeprint", before);
+  }, []);
+
+  // Resolved after mount to avoid a server/client hydration mismatch. The
+  // ?submitted=1 marker is stripped so the shared/copied URL is always the
+  // clean one — and so a reload doesn't re-show the confirmation banner.
   const [shareUrl, setShareUrl] = useState("");
   useEffect(() => {
-    setShareUrl(window.location.href);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("submitted")) {
+      url.searchParams.delete("submitted");
+      window.history.replaceState(null, "", url.toString());
+    }
+    setShareUrl(url.toString());
   }, []);
 
   const commitIntro = (fields: {
@@ -132,12 +177,15 @@ export default function BudgetReview({
   };
 
   // Submitting locks the budget and navigates to the final /budget/{id} view.
+  // ?submitted=1 marks this one arrival so the confirmation banner shows only
+  // to whoever just submitted — not on reload, and not to anyone opening the
+  // shared link.
   const submit = () => {
     if (!onSubmit) return;
     const iso = new Date().toISOString();
     startTransition(async () => {
       await onSubmit(uuid, iso);
-      router.push(`/budget/${uuid}`);
+      router.push(`/budget/${uuid}?submitted=1`);
     });
   };
 
@@ -157,53 +205,57 @@ export default function BudgetReview({
   return (
     <div style={{ padding: "1rem 0 3rem" }}>
       {/* Toolbar — hidden when printing. */}
-      <div
-        className="no-print"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "1rem",
-          marginBottom: "1.5rem",
-          flexWrap: "wrap",
-        }}
-      >
-        {readOnly ? (
-          <span style={{ fontSize: "0.9rem", color: "#666" }}>
-            Final submitted budget
-          </span>
-        ) : (
+      {readOnly ?? (
+        <div
+          className="no-print"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+            marginBottom: "1.5rem",
+            flexWrap: "wrap",
+          }}
+        >
           <Link
             href={`/budget/${uuid}/edit`}
             style={{ color: "#2563eb", fontSize: "0.9rem" }}
           >
             ← Back to editing
           </Link>
-        )}
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={copyLink}
-            style={secondaryButton}
-          >
-            {copied ? "Link copied!" : "Copy share link"}
+          <button type="button" onClick={submit} style={primaryButton}>
+            Submit budget
           </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            style={secondaryButton}
-          >
-            Print / PDF
-          </button>
-          {!readOnly && (
-            <button type="button" onClick={submit} style={primaryButton}>
-              Submit budget
-            </button>
-          )}
         </div>
+      )}
+
+      {/* Share / print actions float in the bottom corner, to the left of the
+          global Feedback button (fixed at right/bottom 1.25rem, z-index 50). */}
+      <div
+        className="no-print"
+        style={{
+          position: "fixed",
+          right: "10.5rem",
+          bottom: "1.25rem",
+          zIndex: 50,
+          display: "flex",
+          gap: "0.5rem",
+          alignItems: "center",
+        }}
+      >
+        <button type="button" onClick={copyLink} style={floatingButton}>
+          {copied ? "Link copied!" : "Copy share link"}
+        </button>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          style={floatingButton}
+        >
+          Print / PDF
+        </button>
       </div>
 
-      {readOnly && submittedAt && (
+      {readOnly && submittedAt && justSubmitted && (
         <p
           className="no-print"
           style={{
@@ -250,30 +302,38 @@ export default function BudgetReview({
         }}
       />
 
-      <div
+      <p
         style={{
-          display: "flex",
-          gap: "2rem",
-          flexWrap: "wrap",
           padding: "1rem 0",
           borderTop: "1px solid #e5e5e5",
           borderBottom: "1px solid #e5e5e5",
           marginBottom: "1.5rem",
+          fontSize: "0.95rem",
+          lineHeight: 1.6,
+          color: "#333",
         }}
       >
-        <Stat label="To spend" value={dollars.format(totalToSpend)} />
-        <Stat label="Allocated" value={dollars.format(totalSpent)} />
-        <Stat
-          label={remaining < 0 ? "Over budget" : "Unallocated"}
-          value={dollars.format(Math.abs(remaining))}
-          color={remaining < 0 ? "#dc2626" : remaining > 0 ? "#2563eb" : "#16a34a"}
-        />
-      </div>
+        This document represents a proposed budget for the General Fund for FY
+        {fiscalYear}. The General Fund for FY{fiscalYear.slice(-2)} was{" "}
+        {dollars.format(totalToSpend)}. This proposed budget includes{" "}
+        <strong
+          style={{
+            color:
+              remaining < 0 ? "#dc2626" : remaining > 0 ? "#2563eb" : "#16a34a",
+          }}
+        >
+          {remaining === 0
+            ? "every dollar allocated"
+            : `${dollars.format(Math.abs(remaining))} ${
+                remaining < 0 ? "over budget" : "unallocated"
+              }`}
+        </strong>
+        .
+      </p>
 
       {/* Additional information (hidden in the final view when empty) */}
       {(!readOnly || info) && (
         <section style={{ marginBottom: "1.5rem" }}>
-          <h2 style={sectionHeading}>Additional information</h2>
           <EditableText
             value={info}
             placeholder="Add context or further explanation for your budget (optional)…"
@@ -287,6 +347,54 @@ export default function BudgetReview({
           />
         </section>
       )}
+
+      {/* ---- Budget visualization (collapsible, +/- view only) ---- */}
+      <section style={{ marginBottom: "1.5rem" }}>
+        <details
+          open={chartOpen}
+          onToggle={(e) => setChartOpen((e.target as HTMLDetailsElement).open)}
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: "0.75rem",
+            padding: "0.75rem 1rem",
+          }}
+        >
+          <summary
+            style={{
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: "0.95rem",
+              listStyle: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <span aria-hidden style={{ color: "#888", fontSize: "0.75rem" }}>
+              {chartOpen ? "▼" : "▶"}
+            </span>
+            Budget visualization
+            <span style={{ fontWeight: 400, color: "#888", fontSize: "0.85rem" }}>
+              — funding change vs. FY2026
+            </span>
+          </summary>
+
+          <div style={{ marginTop: "1rem" }}>
+            <ChangeKey />
+            {chartOpen && (
+              <Treemap
+                data={treemapData}
+                view="fund"
+                valuePrefix="$"
+                categoryColor={categoryColor}
+                forceColorMode="change"
+                hideKey
+                hideBreadcrumb
+              />
+            )}
+          </div>
+        </details>
+      </section>
 
       {/* ---- What this budget delivers — the emphasized outcomes summary ---- */}
       <section
@@ -502,6 +610,21 @@ const secondaryButton: React.CSSProperties = {
   color: "#333",
   cursor: "pointer",
 };
+/** Pill button matching the floating Feedback button it sits beside. */
+const floatingButton: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  whiteSpace: "nowrap",
+  padding: "0.6rem 1rem",
+  fontSize: "0.9rem",
+  fontWeight: 600,
+  border: "1px solid #d4d4d4",
+  borderRadius: "999px",
+  background: "#fff",
+  color: "#333",
+  boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+  cursor: "pointer",
+};
 const sectionHeading: React.CSSProperties = {
   fontSize: "0.8rem",
   textTransform: "uppercase",
@@ -512,117 +635,37 @@ const sectionHeading: React.CSSProperties = {
 const th: React.CSSProperties = { padding: "0.4rem 0.5rem", fontWeight: 600 };
 const td: React.CSSProperties = { padding: "0.4rem 0.5rem" };
 
-function Stat({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color?: string;
-}) {
+/**
+ * Legend for the +/- coloring: a red→pale→green ramp matching Treemap's
+ * diverging change scale (clamped at ±20%).
+ */
+function ChangeKey() {
   return (
-    <div>
-      <div style={{ fontSize: "0.75rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-        {label}
-      </div>
-      <div style={{ fontSize: "1.25rem", fontWeight: 700, color: color ?? "#111" }}>
-        {value}
-      </div>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.6rem",
+        marginBottom: "0.75rem",
+        fontSize: "0.75rem",
+        color: "#666",
+      }}
+    >
+      <span>−20% or less</span>
+      <div
+        aria-hidden
+        style={{
+          flex: 1,
+          height: "0.6rem",
+          borderRadius: "999px",
+          border: "1px solid #e5e5e5",
+          background:
+            "linear-gradient(to right, rgb(230,20,20), rgb(255,255,230), rgb(20,230,20))",
+        }}
+      />
+      <span>+20% or more</span>
     </div>
   );
-}
-
-interface EditableTextProps {
-  value: string;
-  placeholder: string;
-  as: "h1" | "p" | "textarea";
-  style?: React.CSSProperties;
-  readOnly?: boolean;
-  onCommit: (value: string) => void;
-}
-
-/** Click-to-edit text: shows as static text, becomes an input on click. */
-function EditableText({
-  value,
-  placeholder,
-  as,
-  style,
-  readOnly,
-  onCommit,
-}: EditableTextProps) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  // Read-only: render plain, non-interactive text.
-  if (readOnly) {
-    const text = value || "";
-    if (!text) return null;
-    if (as === "h1") return <h1 style={style}>{text}</h1>;
-    if (as === "textarea")
-      return <p style={{ ...style, whiteSpace: "pre-wrap" }}>{text}</p>;
-    return <p style={style}>{text}</p>;
-  }
-
-  const commit = () => {
-    setEditing(false);
-    if (draft.trim() !== value.trim()) onCommit(draft.trim());
-  };
-
-  if (editing) {
-    const shared: React.CSSProperties = {
-      ...style,
-      width: "100%",
-      boxSizing: "border-box",
-      border: "1px solid #2563eb",
-      borderRadius: "0.375rem",
-      padding: "0.4rem 0.5rem",
-      font: "inherit",
-    };
-    return as === "textarea" ? (
-      <textarea
-        autoFocus
-        rows={3}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        style={shared}
-      />
-    ) : (
-      <input
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          if (e.key === "Escape") {
-            setDraft(value);
-            setEditing(false);
-          }
-        }}
-        style={shared}
-      />
-    );
-  }
-
-  const display = value || placeholder;
-  const commonProps = {
-    onClick: () => {
-      setDraft(value);
-      setEditing(true);
-    },
-    title: "Click to edit",
-    style: {
-      ...style,
-      cursor: "pointer",
-      color: value ? style?.color : "#aaa",
-      borderRadius: "0.375rem",
-    } as React.CSSProperties,
-  };
-
-  if (as === "h1") return <h1 {...commonProps}>{display}</h1>;
-  return <p {...commonProps}>{display}</p>;
 }
 
 /** A single "add an outcome" input (the list/removal lives in the summary). */

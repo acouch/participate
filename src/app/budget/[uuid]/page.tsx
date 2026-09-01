@@ -14,10 +14,16 @@ export const metadata = {
 
 interface BudgetPageProps {
   params: Promise<{ uuid: string }>;
+  searchParams: Promise<{ submitted?: string }>;
 }
 
-export default async function BudgetPage({ params }: BudgetPageProps) {
-  const { uuid } = await params;
+export default async function BudgetPage({
+  params,
+  searchParams,
+}: BudgetPageProps) {
+  const [{ uuid }, { submitted }] = await Promise.all([params, searchParams]);
+  // Set only by the redirect right after submitting — see BudgetReview.submit.
+  const justSubmitted = submitted === "1";
 
   const [budget, fund] = await Promise.all([
     prisma.budget.findUnique({
@@ -57,9 +63,10 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   });
 
   return (
-    <main className="lg:px-8 max-w-4xl mx-auto px-4 sm:px-6">
+    <main className="lg:px-8 max-w-7xl mx-auto px-4 sm:px-6">
       <BudgetReview
         readOnly
+        justSubmitted={justSubmitted}
         uuid={uuid}
         fiscalYear={FISCAL_YEAR}
         totalToSpend={fund.totalToSpend}

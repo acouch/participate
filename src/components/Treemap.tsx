@@ -103,6 +103,8 @@ interface TreemapProps {
   hideKey?: boolean;
   /** Forces the color mode and hides the mode toggle (e.g. always % change). */
   forceColorMode?: ColorMode;
+  /** Hides the drill-down breadcrumb (for flat, non-drillable data). */
+  hideBreadcrumb?: boolean;
   view: "fund" | "category"
   help?: ReactElement
 }
@@ -174,6 +176,7 @@ export default function Treemap({
   hideKey,
   help,
   forceColorMode,
+  hideBreadcrumb,
 }: TreemapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -400,6 +403,7 @@ export default function Treemap({
         <div>{help}</div>
       </div>
       }
+      {!(hideBreadcrumb && forceColorMode) && (
       <div
         style={{
           marginBottom: "0.75rem",
@@ -415,7 +419,10 @@ export default function Treemap({
           aria-label="Breadcrumb"
           style={{
             color: "#666",
-            visibility: onTileClick && path.length === 0 ? "hidden" : "visible",
+            visibility:
+              hideBreadcrumb || (onTileClick && path.length === 0)
+                ? "hidden"
+                : "visible",
           }}
         >
           <button
@@ -457,6 +464,7 @@ export default function Treemap({
           </button>
         )}
       </div>
+      )}
       {!hideKey && width > 0 && keySegments.length > 0 && (
         <div
           aria-label="Color key"
