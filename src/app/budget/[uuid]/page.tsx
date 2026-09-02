@@ -1,7 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import BudgetReview from "@/src/components/BudgetReview";
 import { prisma } from "@/src/lib/prisma";
-import { getEditableFund, BASELINE_RAISE, FISCAL_YEAR } from "@/src/lib/budget";
+import { buildLineItems } from "@/src/lib/budget-math";
+import {
+  getEditableFund,
+  FISCAL_YEAR,
+  PRIOR_FISCAL_YEAR,
+} from "@/src/lib/budget";
 import { type BudgetData } from "./actions";
 
 export const metadata = {
@@ -42,21 +47,7 @@ export default async function BudgetPage({
   if (!data?.submittedAt) redirect(`/budget/${uuid}/edit`);
 
   const allocations = data.allocations ?? {};
-  const lineItems = fund.departments.map((d) => {
-    const baselineAmount = Math.round(d.priorAmount * (1 + BASELINE_RAISE));
-    const amount = allocations[d.name] ?? baselineAmount;
-    return {
-      name: d.name,
-      category: d.category,
-      priorAmount: d.priorAmount,
-      baselineAmount,
-      amount,
-      percentChange:
-        d.priorAmount > 0
-          ? ((amount - d.priorAmount) / d.priorAmount) * 100
-          : null,
-    };
-  });
+  const lineItems = buildLineItems(fund.departments, allocations);
 
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -65,6 +56,7 @@ export default async function BudgetPage({
         justSubmitted={justSubmitted}
         uuid={uuid}
         fiscalYear={FISCAL_YEAR}
+        priorFiscalYear={PRIOR_FISCAL_YEAR}
         totalToSpend={fund.totalToSpend}
         name={data.name ?? ""}
         tagline={data.tagline ?? ""}

@@ -8,6 +8,13 @@ interface InfoStepProps {
   tag: string;
   name: string;
   totalToSpend: number;
+  /** Current fiscal year, e.g. "2027". */
+  fiscalYear: string;
+  /** Prior fiscal year, e.g. "2026". */
+  priorFiscalYear: string;
+  /** The uniform raise applied to every department (e.g. 0.018 for 1.8%). */
+  baselineRaise: number;
+  /** Unallocated funds left after the baseline raise, for the user to direct. */
   baselineRemaining: number;
   onNext: () => void;
 }
@@ -26,16 +33,20 @@ export default function InfoStep({
   name,
   tag,
   totalToSpend,
+  fiscalYear,
+  priorFiscalYear,
+  baselineRaise,
   baselineRemaining,
   onNext,
 }: InfoStepProps) {
   const step3 = (
     <p className="lede" style={paragraphStyle}>
-      You have <strong>{dollars.format(totalToSpend)}</strong> to spend, which
-      is the same as Parker&rsquo;s proposed 2027 budget. This is a 1.8%
-      increase from FY2026. That has been applied to all of the departments,
-      with <strong>{dollars.format(baselineRemaining)}</strong> left over to
-      allocate. Click on a department to add or remove funds.
+      You have <strong>{dollars.format(totalToSpend)}</strong>
+      {" to spend, which is the same as Parker’s proposed "}
+      {fiscalYear} budget. This is a {(baselineRaise * 100).toFixed(1)}%
+      increase from FY{priorFiscalYear}. That has been applied to all of the
+      departments, with <strong>{dollars.format(baselineRemaining)}</strong>{" "}
+      left over to allocate. Click on a department to add or remove funds.
     </p>
   );
 

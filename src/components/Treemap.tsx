@@ -105,6 +105,12 @@ interface TreemapProps {
   forceColorMode?: ColorMode;
   /** Hides the drill-down breadcrumb (for flat, non-drillable data). */
   hideBreadcrumb?: boolean;
+  /**
+   * What `percentChange` is measured against, shown in the tooltip. Defaults
+   * to the prior fiscal year; the budget report passes its own basis because
+   * it measures the user's change against the enacted current-year budget.
+   */
+  percentChangeLabel?: string;
   view: "fund" | "category";
   help?: ReactElement;
 }
@@ -177,6 +183,7 @@ export default function Treemap({
   help,
   forceColorMode,
   hideBreadcrumb,
+  percentChangeLabel = "vs prior year",
 }: TreemapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -710,7 +717,7 @@ export default function Treemap({
               fontWeight: 600,
             }}
           >
-            {formatPct(hover.datum.percentChange)} vs prior year
+            {formatPct(hover.datum.percentChange)} {percentChangeLabel}
           </div>
           {/* Show the category line for tiles, but not for key segments
               (where the name already IS the category). */}

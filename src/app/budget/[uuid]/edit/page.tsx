@@ -1,7 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import BudgetEditor from "@/src/components/BudgetEditor";
 import { prisma } from "@/src/lib/prisma";
-import { getEditableFund, BASELINE_RAISE } from "@/src/lib/budget";
+import {
+  getEditableFund,
+  FISCAL_YEAR,
+  PRIOR_FISCAL_YEAR,
+  BASELINE_RAISE,
+} from "@/src/lib/budget";
 import {
   saveAllocations,
   saveIntro,
@@ -49,11 +54,13 @@ export default async function EditPage({ params }: EditPageProps) {
       <BudgetEditor
         uuid={uuid}
         totalToSpend={fund.totalToSpend}
+        fiscalYear={FISCAL_YEAR}
+        priorFiscalYear={PRIOR_FISCAL_YEAR}
+        baselineRaise={BASELINE_RAISE}
         departments={fund.departments}
         savedAllocations={saved}
         savedName={savedName}
         savedTagline={savedTagline}
-        baselineRaise={BASELINE_RAISE}
         initialOutcomes={budget.outcomes}
         onSave={saveAllocations}
         onSaveIntro={saveIntro}

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { TreemapDatum } from "@/src/components/Treemap";
+import { baselineFor } from "@/src/lib/budget-math";
 
 /** A node in the Open Budget hierarchy (data/data.json). */
 export interface BudgetNode {
@@ -108,15 +109,28 @@ export async function getBudget(
 
 /** Fund used for the "make your own budget" editor. */
 export const EDITABLE_FUND = "General Fund";
-/** Uniform raise applied to each department's prior-year budget as the baseline. */
+
+/**
+ * Uniform raise applied to each department's prior-year budget to produce the
+ * editor's starting allocation. This is deliberately a flat across-the-board
+ * increase rather than each department's enacted current-year amount: it gives
+ * every department the same treatment and leaves a small pool of unallocated
+ * money for the user to direct.
+ */
 export const BASELINE_RAISE = 0.018;
 
-/** A department in the editable budget: its category and prior-year amount. */
+/** A department in the editable budget: its category and per-year amounts. */
 export interface EditableDepartment {
   name: string;
   category: string;
-  /** Prior fiscal year (2026) budget — the comparison baseline. */
+  /** Prior fiscal year (2026) budget — used for year-over-year comparison. */
   priorAmount: number;
+  /**
+   * The editor's starting allocation: the prior year plus `BASELINE_RAISE`.
+   * Every user change is measured against this, so a department left alone has
+   * a delta of exactly zero.
+   */
+  baselineAmount: number;
 }
 
 export interface EditableFund {
@@ -126,9 +140,10 @@ export interface EditableFund {
 }
 
 /**
- * Returns the General Fund's departments with their prior-year budgets, plus
- * the total available to spend, for the budget editor. The editor's starting
- * allocation for each department is priorAmount * (1 + BASELINE_RAISE).
+ * Returns the General Fund's departments with their prior-year budgets and the
+ * editor's starting allocation (prior year + `BASELINE_RAISE`), plus the total
+ * available to spend. The baselines intentionally sum to slightly less than
+ * `totalToSpend`, leaving a pool for the user to allocate.
  */
 export async function getEditableFund(): Promise<EditableFund> {
   const [raw, tagging] = await Promise.all([
@@ -146,6 +161,10 @@ export async function getEditableFund(): Promise<EditableFund> {
       priorAmount: child.gross_cost?.accounts?.[PRIOR_FISCAL_YEAR] ?? 0,
     }))
     .filter((d) => d.priorAmount > 0)
+    .map((d) => ({
+      ...d,
+      baselineAmount: baselineFor(d.priorAmount, BASELINE_RAISE),
+    }))
     .sort((a, b) => b.priorAmount - a.priorAmount);
 
   return {

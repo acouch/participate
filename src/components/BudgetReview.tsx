@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import Treemap, { type TreemapDatum } from "@/src/components/Treemap";
 import EditableText from "@/src/components/EditableText";
 import { ordinalColorScale } from "@/src/lib/colors";
+import { compactDollars, deltaVsBaseline } from "@/src/lib/budget-math";
 import type { OutcomeItem } from "@/src/components/BudgetEditor";
 
 interface LineItem {
@@ -27,6 +28,8 @@ interface LineItem {
 interface BudgetReviewProps {
   uuid: string;
   fiscalYear: string;
+  /** The comparison year for the "vs." column (e.g. "2026"). */
+  priorFiscalYear: string;
   totalToSpend: number;
   name: string;
   tagline: string;
@@ -64,29 +67,6 @@ const dollars = new Intl.NumberFormat("en-US", {
 const signedPct = (pct: number) => `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
 
 /**
- * Compact dollars for inline chips: $1.2B, $45M, $900K. Formatted by hand
- * rather than with Intl's `notation: "compact"`, whose trailing-zero handling
- * differs between Node and browser ICU and caused a hydration mismatch.
- */
-function compactDollars(value: number): string {
-  const n = Math.abs(value);
-  const [divisor, suffix] =
-    n >= 1e9
-      ? [1e9, "B"]
-      : n >= 1e6
-        ? [1e6, "M"]
-        : n >= 1e3
-          ? [1e3, "K"]
-          : [1, ""];
-  const scaled = n / divisor;
-  // One decimal below 100 (e.g. $1.2B, $45.3M), none above (e.g. $124M).
-  const text =
-    scaled < 100 && divisor > 1
-      ? scaled.toFixed(1)
-      : Math.round(scaled).toString();
-  return `$${text.replace(/\.0$/, "")}${suffix}`;
-}
-/**
  * The current location with the transient ?submitted=1 marker removed — the
  * URL that should be shared. Cached because useSyncExternalStore requires a
  * referentially stable snapshot between store changes.
@@ -123,6 +103,7 @@ const pctColorClass = (pct: number | null) =>
 export default function BudgetReview({
   uuid,
   fiscalYear,
+  priorFiscalYear,
   totalToSpend,
   name: initialName,
   tagline: initialTagline,
@@ -162,8 +143,9 @@ export default function BudgetReview({
     return map;
   }, [outcomes]);
 
-  // The same chart the editor shows, sized by allocation and colored by change
-  // vs. FY2026 (the +/- view).
+  // The same chart the editor shows, sized by allocation and colored by the
+  // change against the prior year (FY2026) — the same basis as the report's
+  // percentages and the full budget table.
   const treemapData: TreemapDatum[] = useMemo(
     () =>
       lineItems.map((d) => ({
@@ -388,10 +370,7 @@ export default function BudgetReview({
                       >
                         {dollars.format(Math.abs(remaining))}
                       </strong>{" "}
-                      {remaining < 0
-                        ? "over budget"
-                        : "unnalocated"}
-                      .
+                      {remaining < 0 ? "over budget" : "unnalocated"}.
                     </>
                   )}
                 </p>
@@ -414,7 +393,7 @@ export default function BudgetReview({
             </span>
             Budget visualization
             <span className="text-[0.85rem] font-normal text-neutral-500">
-              — funding change vs. FY2026
+              — funding change vs. FY{priorFiscalYear}
             </span>
           </summary>
 
@@ -466,12 +445,12 @@ export default function BudgetReview({
           <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2">
             {changed.map((d) => {
               const list = outcomesByDept.get(d.name) ?? [];
-              // The delta is measured against the baseline the user started
-              // from, so it reflects their own decision — not the automatic
-              // year-over-year raise every department already received.
-              const delta = d.amount - d.baselineAmount;
-              const deltaPct =
-                d.baselineAmount > 0 ? (delta / d.baselineAmount) * 100 : null;
+              // The dollar figure is the money this budget actually moves —
+              // the change from the enacted FY2027 amount the user started
+              // from. The percentage is year-over-year (vs. FY2026), matching
+              // the chart and the full budget table.
+              const delta = deltaVsBaseline(d);
+              const deltaPct = d.percentChange;
               const up = delta > 0;
               return (
                 <li
@@ -587,7 +566,7 @@ export default function BudgetReview({
             <tr className="text-left text-neutral-500">
               <th>Department</th>
               <th className="text-right">Amount</th>
-              <th className="text-right">vs. FY2026</th>
+              <th className="text-right">vs. FY{priorFiscalYear}</th>
             </tr>
           </thead>
           <tbody>

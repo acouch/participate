@@ -3,7 +3,10 @@ import type React from "react";
 export interface EditorDepartment {
   name: string;
   category: string;
+  /** Prior fiscal year (2026) budget — for year-over-year comparison. */
   priorAmount: number;
+  /** Enacted FY2027 budget — the editor's starting allocation. */
+  baselineAmount: number;
 }
 
 export interface OutcomeItem {

@@ -5,6 +5,10 @@ import { dollars } from "@/src/lib/budget-format";
 
 interface NameStepProps {
   totalToSpend: number;
+  /** Current fiscal year, e.g. "2027". */
+  fiscalYear: string;
+  /** Prior fiscal year, e.g. "2026" — the year FY{fiscalYear} began in. */
+  priorFiscalYear: string;
   nameDraft: string;
   onNameDraftChange: (value: string) => void;
   onSubmit: () => void;
@@ -13,6 +17,8 @@ interface NameStepProps {
 /** Welcome step 1: introduce the tool and collect the mayoral / project name. */
 export default function NameStep({
   totalToSpend,
+  fiscalYear,
+  priorFiscalYear,
   nameDraft,
   onNameDraftChange,
   onSubmit,
@@ -33,8 +39,8 @@ export default function NameStep({
           marginTop: "0.75rem",
         }}
       >
-        You have <strong>{dollars.format(totalToSpend)}</strong> for fiscal year
-        2027, which started July 1, 2026.
+        You have <strong>{dollars.format(totalToSpend)}</strong> for fiscal year{" "}
+        {fiscalYear}, which started July 1, {priorFiscalYear}.
       </p>
 
       <label

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import type { TreemapDatum } from "@/src/components/Treemap";
 import { ordinalColorScale } from "@/src/lib/colors";
+import { changedAllocationsOnly } from "@/src/lib/budget-math";
 import WelcomeFlow from "@/src/components/budget/WelcomeFlow";
 import EditorView from "@/src/components/budget/EditorView";
 import EditDeptModal from "@/src/components/budget/EditDeptModal";
@@ -14,6 +15,12 @@ export type { EditorDepartment, OutcomeItem };
 interface BudgetEditorProps {
   uuid: string;
   totalToSpend: number;
+  /** Current fiscal year, e.g. "2027". */
+  fiscalYear: string;
+  /** Prior fiscal year, e.g. "2026". */
+  priorFiscalYear: string;
+  /** The uniform raise applied to every department (e.g. 0.018 for 1.8%). */
+  baselineRaise: number;
   departments: EditorDepartment[];
   /** Persisted allocations (dept name -> amount); empty on a fresh budget. */
   savedAllocations: Record<string, number>;
@@ -21,7 +28,6 @@ interface BudgetEditorProps {
   savedName: string;
   /** What the budget delivers; empty until they set it. */
   savedTagline: string;
-  baselineRaise: number;
   /** Outcomes already saved for this budget. */
   initialOutcomes: OutcomeItem[];
   /** Server action to persist allocations. */
@@ -44,29 +50,32 @@ interface BudgetEditorProps {
 export default function BudgetEditor({
   uuid,
   totalToSpend,
+  fiscalYear,
+  priorFiscalYear,
+  baselineRaise,
   departments,
   savedAllocations,
   savedName,
   savedTagline,
-  baselineRaise,
   initialOutcomes,
   onSave,
   onSaveIntro,
   onAddOutcome,
   onDeleteOutcome,
 }: BudgetEditorProps) {
-  // Starting allocation per department: prior year * (1 + baseline raise),
-  // unless the saved budget already has an edited amount.
+  // Starting allocation per department: the enacted FY2027 budget, unless the
+  // saved budget already has an edited amount.
   const baseline = useMemo(() => {
     const map: Record<string, number> = {};
     for (const d of departments) {
-      map[d.name] = Math.round(d.priorAmount * (1 + baselineRaise));
+      map[d.name] = d.baselineAmount;
     }
     return map;
-  }, [departments, baselineRaise]);
+  }, [departments]);
 
-  // Funds left after the uniform baseline raise is applied to every department
-  // (shown in the welcome copy before any editing).
+  // Funds left unallocated before the user edits anything. The enacted budget
+  // balances exactly, so this is normally $0 — computed rather than assumed so
+  // the welcome copy stays honest if the source data ever changes.
   const baselineRemaining = useMemo(
     () => totalToSpend - Object.values(baseline).reduce((s, v) => s + v, 0),
     [totalToSpend, baseline],
@@ -188,6 +197,8 @@ export default function BudgetEditor({
   );
 
   // Treemap data: value = current allocation, % change = vs. prior year (2026).
+  // An untouched department therefore shows the baseline raise (+1.8%), which
+  // is what the tooltip's "vs prior year" label describes.
   const data: TreemapDatum[] = useMemo(
     () =>
       departments.map((d) => {
@@ -218,11 +229,17 @@ export default function BudgetEditor({
 
   // Update one department's allocation and persist. Shared by the modal and
   // the editable list below the chart.
+  //
+  // Only departments the user actually moved off the baseline are persisted:
+  // storing the whole map would record every untouched department as a
+  // deliberate choice, and the report can no longer tell an edit from a
+  // default (which is what "What this budget delivers" keys off).
   const commitAllocation = (name: string, rawAmount: number) => {
     const amount = Math.max(0, Math.round(rawAmount || 0));
     const next = { ...allocations, [name]: amount };
     setAllocations(next);
-    startTransition(() => onSave(uuid, next));
+    const changedOnly = changedAllocationsOnly(next, baseline);
+    startTransition(() => onSave(uuid, changedOnly));
   };
 
   // Does the modal's draft change the department's currently-saved amount?
@@ -278,6 +295,9 @@ export default function BudgetEditor({
         step={step}
         name={name}
         totalToSpend={totalToSpend}
+        fiscalYear={fiscalYear}
+        priorFiscalYear={priorFiscalYear}
+        baselineRaise={baselineRaise}
         baselineRemaining={baselineRemaining}
         nameDraft={nameDraft}
         taglineDraft={taglineDraft}
