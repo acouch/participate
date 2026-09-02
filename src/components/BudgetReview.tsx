@@ -291,8 +291,8 @@ export default function BudgetReview({
         </p>
       )}
 
-      <div className="flex">
-        <div className="w-3/4">
+      <div className="flex flex-col md:flex-row">
+        <div className="order-1 md:w-3/4">
           {/* Share / print actions float in the bottom corner, to the left of the
           global Feedback button (fixed at right/bottom 1.25rem, z-index 50). */}
           <div className="no-print fixed right-[10.5rem] bottom-5 z-50 flex items-center gap-2">
@@ -333,7 +333,7 @@ export default function BudgetReview({
           />
           {/* Additional information (hidden in the final view when empty) */}
           {(!readOnly || info) && (
-            <section className="mb-6">
+            <section className="md-2 md:mb-6">
               <EditableText
                 value={info}
                 placeholder="Add context or further explanation for your budget (optional)…"
@@ -348,7 +348,7 @@ export default function BudgetReview({
             </section>
           )}
         </div>
-        <div className="ml-4 w-1/4">
+        <div className="order-0 mb-5 md:order-1 md:ml-4 md:w-1/4">
           <div
             className="rounded-b border-1 border-t-2 border-neutral-200 px-4 py-3"
             role="alert"
@@ -374,23 +374,26 @@ export default function BudgetReview({
                   <strong>{dollars.format(totalToSpend)}</strong>.
                 </p>
                 <p className="py-1">
-                  This proposed budget includes{" "}
-                  <strong
-                    className={
-                      remaining < 0
-                        ? "text-red-600"
-                        : remaining > 0
-                          ? "text-blue-600"
-                          : "text-green-600"
-                    }
-                  >
-                    {remaining === 0
-                      ? "every dollar allocated"
-                      : `${dollars.format(Math.abs(remaining))} ${
-                          remaining < 0 ? "over budget" : "unallocated"
-                        }`}
-                  </strong>
-                  .
+                  {remaining !== 0 && (
+                    <>
+                      This proposed budget {remaining < 0 ? " is " : " leaves "}
+                      <strong
+                        className={
+                          remaining < 0
+                            ? "text-red-600"
+                            : remaining > 0
+                              ? "text-blue-600"
+                              : "text-green-600"
+                        }
+                      >
+                        {dollars.format(Math.abs(remaining))}
+                      </strong>{" "}
+                      {remaining < 0
+                        ? "over budget"
+                        : "unnalocated"}
+                      .
+                    </>
+                  )}
                 </p>
               </div>
             </div>
