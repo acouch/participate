@@ -62,6 +62,30 @@ const dollars = new Intl.NumberFormat("en-US", {
 });
 
 const signedPct = (pct: number) => `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+
+/**
+ * Compact dollars for inline chips: $1.2B, $45M, $900K. Formatted by hand
+ * rather than with Intl's `notation: "compact"`, whose trailing-zero handling
+ * differs between Node and browser ICU and caused a hydration mismatch.
+ */
+function compactDollars(value: number): string {
+  const n = Math.abs(value);
+  const [divisor, suffix] =
+    n >= 1e9
+      ? [1e9, "B"]
+      : n >= 1e6
+        ? [1e6, "M"]
+        : n >= 1e3
+          ? [1e3, "K"]
+          : [1, ""];
+  const scaled = n / divisor;
+  // One decimal below 100 (e.g. $1.2B, $45.3M), none above (e.g. $124M).
+  const text =
+    scaled < 100 && divisor > 1
+      ? scaled.toFixed(1)
+      : Math.round(scaled).toString();
+  return `$${text.replace(/\.0$/, "")}${suffix}`;
+}
 /**
  * The current location with the transient ?submitted=1 marker removed — the
  * URL that should be shared. Cached because useSyncExternalStore requires a
@@ -243,6 +267,8 @@ export default function BudgetReview({
 
   // Departments the user actually changed from the default baseline.
   const changed = lineItems.filter((d) => d.amount !== d.baselineAmount);
+  const increased = changed.filter((d) => d.amount > d.baselineAmount);
+  const decreased = changed.filter((d) => d.amount < d.baselineAmount);
 
   return (
     <div className="pt-4 pb-12">
@@ -322,9 +348,9 @@ export default function BudgetReview({
             </section>
           )}
         </div>
-        <div className="w-1/4 ml-4">
+        <div className="ml-4 w-1/4">
           <div
-            className="rounded-b px-4 py-3 border-1 border-neutral-200 border-t-2"
+            className="rounded-b border-1 border-t-2 border-neutral-200 px-4 py-3"
             role="alert"
           >
             <div className="flex">
@@ -407,39 +433,80 @@ export default function BudgetReview({
       </section>
 
       {/* ---- What this budget delivers — the emphasized outcomes summary ---- */}
-      <section className="mb-6 rounded-xl border border-neutral-200 bg-slate-50 p-6">
-        <h2 className="mb-4 text-[1.35rem] font-bold">
-          What this budget delivers
-        </h2>
+      <section className="mb-6 rounded-xl border border-neutral-200 bg-slate-50 p-4">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="text-[1.15rem] font-bold">
+            What this budget delivers
+          </h2>
+          {changed.length > 0 && (
+            <p className="m-0 text-xs text-neutral-500">
+              {increased.length > 0 && (
+                <span className="font-semibold text-green-700">
+                  {increased.length} increased
+                </span>
+              )}
+              {increased.length > 0 && decreased.length > 0 && " · "}
+              {decreased.length > 0 && (
+                <span className="font-semibold text-red-700">
+                  {decreased.length} decreased
+                </span>
+              )}
+            </p>
+          )}
+        </div>
         {changed.length === 0 ? (
           <p className="text-[0.95rem] text-neutral-500">
             No funding changes yet — adjust a department to describe what your
             budget will deliver.
           </p>
         ) : (
-          <ul className="m-0 grid list-none gap-5 p-0">
+          <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2">
             {changed.map((d) => {
               const list = outcomesByDept.get(d.name) ?? [];
+              // The delta is measured against the baseline the user started
+              // from, so it reflects their own decision — not the automatic
+              // year-over-year raise every department already received.
+              const delta = d.amount - d.baselineAmount;
+              const deltaPct =
+                d.baselineAmount > 0 ? (delta / d.baselineAmount) * 100 : null;
+              const up = delta > 0;
               return (
-                <li key={d.name}>
-                  <div className="mb-[0.4rem] flex items-baseline gap-2">
-                    <span className="text-[1.05rem] font-bold">{d.name}</span>
+                <li
+                  key={d.name}
+                  className={`flex flex-col gap-2 rounded-lg border border-l-4 bg-white p-3 ${
+                    up
+                      ? "border-green-100 border-l-green-500"
+                      : "border-red-100 border-l-red-500"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[0.95rem] leading-tight font-bold">
+                      {d.name}
+                    </span>
                     <span
-                      className={`text-[0.85rem] font-semibold ${pctColorClass(
-                        d.percentChange,
-                      )}`}
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap ${
+                        up
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
                     >
-                      {d.amount > d.baselineAmount
-                        ? "more funding"
-                        : "less funding"}
+                      {up ? "+" : "−"}
+                      {compactDollars(delta)}
+                      {deltaPct != null && (
+                        <span className="font-semibold opacity-75">
+                          {" "}
+                          ({signedPct(deltaPct)})
+                        </span>
+                      )}
                     </span>
                   </div>
-                  {list.length > 0 ? (
-                    <ul className="m-0 grid list-none gap-[0.4rem] p-0">
+
+                  {list.length > 0 && (
+                    <ul className="m-0 grid list-none gap-1 p-0">
                       {list.map((o) => (
                         <li
                           key={o.id}
-                          className="flex items-start gap-2 text-base leading-normal text-gray-800"
+                          className="flex items-start gap-1.5 text-[0.85rem] leading-snug text-gray-700"
                         >
                           <span aria-hidden className="text-blue-600">
                             →
@@ -448,7 +515,7 @@ export default function BudgetReview({
                           {!readOnly && (
                             <button
                               type="button"
-                              className="no-print cursor-pointer border-0 bg-transparent text-neutral-400"
+                              className="no-print shrink-0 cursor-pointer border-0 bg-transparent leading-none text-neutral-400"
                               onClick={() => removeOutcome(o.id)}
                               aria-label="Delete outcome"
                             >
@@ -458,15 +525,16 @@ export default function BudgetReview({
                         </li>
                       ))}
                     </ul>
-                  ) : (
-                    !readOnly && (
-                      <p className="no-print mt-0 mb-[0.4rem] text-[0.85rem] text-red-600">
-                        Add an outcome to describe what this change delivers.
-                      </p>
-                    )
                   )}
+
+                  {list.length === 0 && !readOnly && (
+                    <p className="no-print m-0 text-xs text-red-600">
+                      Add an outcome to describe what this change delivers.
+                    </p>
+                  )}
+
                   {!readOnly && (
-                    <div className="no-print mt-[0.4rem]">
+                    <div className="no-print mt-auto">
                       <OutcomeAdder
                         onAdd={(text) => addOutcome(d.name, text)}
                       />
@@ -479,7 +547,7 @@ export default function BudgetReview({
         )}
       </section>
 
-      {/* Funding changes — the money view, without outcomes */}
+      {/* Funding changes — the money view, without outcomes 
       <section className="mb-6">
         <h2 className="section-heading">Funding changes ({changed.length})</h2>
         {changed.length === 0 ? (
@@ -507,7 +575,7 @@ export default function BudgetReview({
           </ul>
         )}
       </section>
-
+      */}
       {/* Full budget table */}
       <section>
         <h2 className="section-heading">Full General Fund budget</h2>
