@@ -1,0 +1,11 @@
+.next/
+node_modules/
+out/
+build/
+src/generated/
+prisma/migrations/
+package-lock.json
+tsconfig.tsbuildinfo
+next-env.d.ts
+data/
+*.sql

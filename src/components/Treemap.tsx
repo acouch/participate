@@ -105,8 +105,8 @@ interface TreemapProps {
   forceColorMode?: ColorMode;
   /** Hides the drill-down breadcrumb (for flat, non-drillable data). */
   hideBreadcrumb?: boolean;
-  view: "fund" | "category"
-  help?: ReactElement
+  view: "fund" | "category";
+  help?: ReactElement;
 }
 
 // Internal hierarchy shape: a synthetic root wrapping the flat top-level data.
@@ -342,9 +342,7 @@ export default function Treemap({
       // Back out the prior-year value so the segment can show an aggregate
       // year-over-year change (prior = value / (1 + pct/100)).
       const prior =
-        d.percentChange == null
-          ? 0
-          : d.value / (1 + d.percentChange / 100);
+        d.percentChange == null ? 0 : d.value / (1 + d.percentChange / 100);
       const g = groups.get(label);
       if (g) {
         g.value += d.value;
@@ -395,75 +393,81 @@ export default function Treemap({
 
   return (
     <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
-      { help && 
-      <div className="rounded-md mb-4 px-2 py-2 outline-2 text-gray-400 outline-[#1a3cb914] text-left text-sm flex items-start">
-        <svg className="flex-shrink-0 w-4 h-4 mr-1" aria-hidden="true" fill="#b3b3b3" xmlns="http://w3.org" viewBox="0 0 20 20">
-          <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
-        </svg>
-        <div>{help}</div>
-      </div>
-      }
+      {help && (
+        <div className="mb-4 flex items-start rounded-md px-2 py-2 text-left text-sm text-gray-400 outline-2 outline-[#1a3cb914]">
+          <svg
+            className="mr-1 h-4 w-4 flex-shrink-0"
+            aria-hidden="true"
+            fill="#b3b3b3"
+            xmlns="http://w3.org"
+            viewBox="0 0 20 20"
+          >
+            <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
+          </svg>
+          <div>{help}</div>
+        </div>
+      )}
       {!(hideBreadcrumb && forceColorMode) && (
-      <div
-        style={{
-          marginBottom: "0.75rem",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "1rem",
-          textAlign: "left",
-          fontSize: "0.8rem",
-        }}
-      >
-        <nav
-          aria-label="Breadcrumb"
+        <div
           style={{
-            color: "#666",
-            visibility:
-              hideBreadcrumb || (onTileClick && path.length === 0)
-                ? "hidden"
-                : "visible",
+            marginBottom: "0.75rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+            textAlign: "left",
+            fontSize: "0.8rem",
           }}
         >
-          <button
-            type="button"
-            style={crumbStyle}
-            onClick={() => setPath([])}
+          <nav
+            aria-label="Breadcrumb"
+            style={{
+              color: "#666",
+              visibility:
+                hideBreadcrumb || (onTileClick && path.length === 0)
+                  ? "hidden"
+                  : "visible",
+            }}
           >
-            {view ==="category" ? "All categories" : "All funds" }
-          </button>
-          {path.map((name, i) => (
-            <span key={name}>
-              <span style={{ margin: "0 0.4rem", color: "#aaa" }}>›</span>
-              {i === path.length - 1 ? (
-                <span style={{ color: "#333", fontWeight: 600 }}>{name}</span>
-              ) : (
-                <button
-                  type="button"
-                  style={crumbStyle}
-                  onClick={() => setPath(path.slice(0, i + 1))}
-                >
-                  {name}
-                </button>
-              )}
-            </span>
-          ))}
-        </nav>
-        {!forceColorMode && (
-          <button
-            type="button"
-            onClick={() =>
-              setColorMode((m) => (m === "category" ? "change" : "category"))
-            }
-            style={buttonStyle}
-            aria-pressed={colorMode === "change"}
-          >
-            {colorMode === "category"
-              ? "Color by % change"
-              : "Color by category"}
-          </button>
-        )}
-      </div>
+            <button
+              type="button"
+              style={crumbStyle}
+              onClick={() => setPath([])}
+            >
+              {view === "category" ? "All categories" : "All funds"}
+            </button>
+            {path.map((name, i) => (
+              <span key={name}>
+                <span style={{ margin: "0 0.4rem", color: "#aaa" }}>›</span>
+                {i === path.length - 1 ? (
+                  <span style={{ color: "#333", fontWeight: 600 }}>{name}</span>
+                ) : (
+                  <button
+                    type="button"
+                    style={crumbStyle}
+                    onClick={() => setPath(path.slice(0, i + 1))}
+                  >
+                    {name}
+                  </button>
+                )}
+              </span>
+            ))}
+          </nav>
+          {!forceColorMode && (
+            <button
+              type="button"
+              onClick={() =>
+                setColorMode((m) => (m === "category" ? "change" : "category"))
+              }
+              style={buttonStyle}
+              aria-pressed={colorMode === "change"}
+            >
+              {colorMode === "category"
+                ? "Color by % change"
+                : "Color by category"}
+            </button>
+          )}
+        </div>
       )}
       {!hideKey && width > 0 && keySegments.length > 0 && (
         <div
@@ -568,95 +572,93 @@ export default function Treemap({
           aria-label="Treemap"
         >
           {leaves.map((leaf) => {
-        const name = leaf.data.name;
-        const w = leaf.x1 - leaf.x0;
-        const h = leaf.y1 - leaf.y0;
-        const baseFill = fillFor(leaf.data);
-        // Gray out tiles not in the category hovered in the key.
-        const dimmed =
-          hoveredCategory != null && leaf.data.category !== hoveredCategory;
-        const fill = dimmed ? toGray(baseFill) : baseFill;
-        const textColor = readableTextColor(fill);
-        const valueLabel = `${valuePrefix}${formatValue(leaf.value ?? 0)}`;
-        const pct = leaf.data.percentChange;
-        const pctLabel =
-          pct == null ? "n/a" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+            const name = leaf.data.name;
+            const w = leaf.x1 - leaf.x0;
+            const h = leaf.y1 - leaf.y0;
+            const baseFill = fillFor(leaf.data);
+            // Gray out tiles not in the category hovered in the key.
+            const dimmed =
+              hoveredCategory != null && leaf.data.category !== hoveredCategory;
+            const fill = dimmed ? toGray(baseFill) : baseFill;
+            const textColor = readableTextColor(fill);
+            const valueLabel = `${valuePrefix}${formatValue(leaf.value ?? 0)}`;
 
-        // How many lines fit in this tile's height, accounting for padding.
-        const maxLines = Math.floor((h - PADDING) / LINE_HEIGHT);
-        const textWidth = w - PADDING * 2;
-        const nameLines = wrapText(name, textWidth);
-        // Show the value only if it fits on one line without wrapping.
-        const valueFits = valueLabel.length * CHAR_WIDTH <= textWidth;
-        const lines: { text: string; bold: boolean }[] = nameLines
-          .map((text) => ({ text, bold: true }))
-          .concat(valueFits ? [{ text: valueLabel, bold: false }] : [])
-          .slice(0, Math.max(0, maxLines));
+            // How many lines fit in this tile's height, accounting for padding.
+            const maxLines = Math.floor((h - PADDING) / LINE_HEIGHT);
+            const textWidth = w - PADDING * 2;
+            const nameLines = wrapText(name, textWidth);
+            // Show the value only if it fits on one line without wrapping.
+            const valueFits = valueLabel.length * CHAR_WIDTH <= textWidth;
+            const lines: { text: string; bold: boolean }[] = nameLines
+              .map((text) => ({ text, bold: true }))
+              .concat(valueFits ? [{ text: valueLabel, bold: false }] : [])
+              .slice(0, Math.max(0, maxLines));
 
-        // Hide the label if the name got truncated to a partial fragment
-        // (all name lines don't fit), to avoid showing cut-off words.
-        const nameFits = lines.filter((l) => l.bold).length >= nameLines.length;
-        const showLabel = w >= 34 && nameFits && lines.length > 0;
-        const drillable =
-          !onTileClick &&
-          Array.isArray(leaf.data.children) &&
-          leaf.data.children.length > 0;
-        const clickable = drillable || !!onTileClick;
-        const titleHint = onTileClick
-          ? "\n(click to edit)"
-          : drillable
-            ? "\n(click to drill down)"
-            : "";
-        const handleClick = onTileClick
-          ? () => onTileClick(leaf.data as TreemapDatum)
-          : drillable
-            ? () => setPath([...path, name])
-            : undefined;
-        const handleMove = (e: React.MouseEvent) => {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (!rect) return;
-          setHover({
-            datum: leaf.data as TreemapDatum,
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
-          });
-        };
-        return (
-          <g
-            key={name}
-            transform={`translate(${leaf.x0},${leaf.y0})`}
-            onClick={handleClick}
-            onMouseMove={handleMove}
-            onMouseLeave={() => setHover(null)}
-            style={clickable ? { cursor: "pointer" } : undefined}
-          >
-            <title>{`${name}${titleHint}`}</title>
-            <rect
-              width={w}
-              height={h}
-              fill={fill}
-              rx={2}
-              opacity={dimmed ? 0.55 : 1}
-              style={{ transition: "fill 0.15s, opacity 0.15s" }}
-            />
-            {showLabel && (
-              <text x={PADDING} y={PADDING + 12} fill={textColor}>
-                {lines.map((line, i) => (
-                  <tspan
-                    key={i}
-                    x={PADDING}
-                    dy={i === 0 ? 0 : LINE_HEIGHT}
-                    style={
-                      line.bold
-                        ? { fontWeight: 600 }
-                        : { fontWeight: 400, fillOpacity: 0.85 }
-                    }
-                  >
-                    {line.text}
-                  </tspan>
-                ))}
-              </text>
-            )}
+            // Hide the label if the name got truncated to a partial fragment
+            // (all name lines don't fit), to avoid showing cut-off words.
+            const nameFits =
+              lines.filter((l) => l.bold).length >= nameLines.length;
+            const showLabel = w >= 34 && nameFits && lines.length > 0;
+            const drillable =
+              !onTileClick &&
+              Array.isArray(leaf.data.children) &&
+              leaf.data.children.length > 0;
+            const clickable = drillable || !!onTileClick;
+            const titleHint = onTileClick
+              ? "\n(click to edit)"
+              : drillable
+                ? "\n(click to drill down)"
+                : "";
+            const handleClick = onTileClick
+              ? () => onTileClick(leaf.data as TreemapDatum)
+              : drillable
+                ? () => setPath([...path, name])
+                : undefined;
+            const handleMove = (e: React.MouseEvent) => {
+              const rect = containerRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              setHover({
+                datum: leaf.data as TreemapDatum,
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+              });
+            };
+            return (
+              <g
+                key={name}
+                transform={`translate(${leaf.x0},${leaf.y0})`}
+                onClick={handleClick}
+                onMouseMove={handleMove}
+                onMouseLeave={() => setHover(null)}
+                style={clickable ? { cursor: "pointer" } : undefined}
+              >
+                <title>{`${name}${titleHint}`}</title>
+                <rect
+                  width={w}
+                  height={h}
+                  fill={fill}
+                  rx={2}
+                  opacity={dimmed ? 0.55 : 1}
+                  style={{ transition: "fill 0.15s, opacity 0.15s" }}
+                />
+                {showLabel && (
+                  <text x={PADDING} y={PADDING + 12} fill={textColor}>
+                    {lines.map((line, i) => (
+                      <tspan
+                        key={i}
+                        x={PADDING}
+                        dy={i === 0 ? 0 : LINE_HEIGHT}
+                        style={
+                          line.bold
+                            ? { fontWeight: 600 }
+                            : { fontWeight: 400, fillOpacity: 0.85 }
+                        }
+                      >
+                        {line.text}
+                      </tspan>
+                    ))}
+                  </text>
+                )}
               </g>
             );
           })}
@@ -669,8 +671,7 @@ export default function Treemap({
             position: "absolute",
             left: hover.x + (hover.x > width * 0.75 ? -16 : 16),
             top: hover.y + 16,
-            transform:
-              hover.x > width * 0.75 ? "translateX(-100%)" : undefined,
+            transform: hover.x > width * 0.75 ? "translateX(-100%)" : undefined,
             pointerEvents: "none",
             background: "rgba(17,17,17,0.92)",
             color: "#fff",

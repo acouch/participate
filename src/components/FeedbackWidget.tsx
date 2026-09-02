@@ -207,7 +207,10 @@ export default function FeedbackWidget() {
                 </p>
 
                 <label htmlFor="feedback-name" style={labelStyle}>
-                  Name <span style={{ color: "#888", fontWeight: 400 }}>(optional)</span>
+                  Name{" "}
+                  <span style={{ color: "#888", fontWeight: 400 }}>
+                    (optional)
+                  </span>
                 </label>
                 <input
                   id="feedback-name"
@@ -219,7 +222,10 @@ export default function FeedbackWidget() {
                 />
 
                 <label htmlFor="feedback-email" style={labelStyle}>
-                  Email <span style={{ color: "#888", fontWeight: 400 }}>(optional)</span>
+                  Email{" "}
+                  <span style={{ color: "#888", fontWeight: 400 }}>
+                    (optional)
+                  </span>
                 </label>
                 <input
                   id="feedback-email"

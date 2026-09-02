@@ -6,7 +6,6 @@ import {
   sankeyLinkHorizontal,
   type SankeyGraph,
   type SankeyNode,
-  type SankeyLink,
 } from "d3-sankey";
 import { ordinalColorScale } from "@/src/lib/colors";
 import type { FundFlows, FlowNode, FlowLink } from "@/src/lib/budget";
@@ -20,7 +19,6 @@ const dollars = new Intl.NumberFormat("en-US", {
 // d3-sankey mutates the node/link objects it's given (adding x0/y0/… and
 // resolving source/target to node refs), so these are our data plus its layout.
 type SNode = SankeyNode<FlowNode, FlowLink>;
-type SLink = SankeyLink<FlowNode, FlowLink>;
 
 const NEUTRAL = "#9ca3af"; // "Other" nodes (no category)
 
@@ -59,9 +57,7 @@ export default function FundSankey({ flows, height = 900 }: FundSankeyProps) {
   const categoryColor = useMemo(() => {
     const cats = Array.from(
       new Set(
-        flows.nodes
-          .filter((n) => n.category)
-          .map((n) => n.category as string),
+        flows.nodes.filter((n) => n.category).map((n) => n.category as string),
       ),
     );
     return ordinalColorScale(cats);
@@ -98,15 +94,18 @@ export default function FundSankey({ flows, height = 900 }: FundSankeyProps) {
   return (
     <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
       {graph && width > 0 && (
-        <svg width={width} height={height} role="img" aria-label="Fund to department budget flows">
+        <svg
+          width={width}
+          height={height}
+          role="img"
+          aria-label="Fund to department budget flows"
+        >
           {/* Links */}
           <g fill="none">
             {graph.links.map((link, i) => {
               const target = link.target as SNode;
               const stroke =
-                target.kind === "department"
-                  ? colorForNode(target)
-                  : NEUTRAL;
+                target.kind === "department" ? colorForNode(target) : NEUTRAL;
               const source = link.source as SNode;
               return (
                 <path

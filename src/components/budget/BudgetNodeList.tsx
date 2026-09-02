@@ -8,8 +8,7 @@ const dollars = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-const signedPct = (pct: number) =>
-  `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+const signedPct = (pct: number) => `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
 
 const pctTextColor = (pct: number | null | undefined) =>
   pct == null ? "#666" : pct > 0 ? "#16a34a" : pct < 0 ? "#dc2626" : "#666";
@@ -69,7 +68,14 @@ export default function BudgetNodeList({
                   flexShrink: 0,
                 }}
               />
-              <span style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: "0.875rem" }}>
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                }}
+              >
                 {node.name}
               </span>
               <span
@@ -108,7 +114,10 @@ export default function BudgetNodeList({
           };
 
           return (
-            <li key={node.name} style={{ borderTop: i === 0 ? "none" : "1px solid #f0f0f0" }}>
+            <li
+              key={node.name}
+              style={{ borderTop: i === 0 ? "none" : "1px solid #f0f0f0" }}
+            >
               {drillable ? (
                 <button
                   type="button"

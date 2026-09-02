@@ -53,8 +53,8 @@ export default function OutcomesList({
                 marginTop: 4,
                 background: categoryColor(
                   priorByName[o.department] !== undefined
-                    ? departments.find((d) => d.name === o.department)
-                        ?.category ?? ""
+                    ? (departments.find((d) => d.name === o.department)
+                        ?.category ?? "")
                     : "",
                 ),
                 flexShrink: 0,

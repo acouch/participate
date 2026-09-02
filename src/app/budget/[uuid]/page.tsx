@@ -1,11 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import BudgetReview from "@/src/components/BudgetReview";
 import { prisma } from "@/src/lib/prisma";
-import {
-  getEditableFund,
-  BASELINE_RAISE,
-  FISCAL_YEAR,
-} from "@/src/lib/budget";
+import { getEditableFund, BASELINE_RAISE, FISCAL_YEAR } from "@/src/lib/budget";
 import { type BudgetData } from "./actions";
 
 export const metadata = {
@@ -63,7 +59,7 @@ export default async function BudgetPage({
   });
 
   return (
-    <main className="lg:px-8 max-w-7xl mx-auto px-4 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <BudgetReview
         readOnly
         justSubmitted={justSubmitted}

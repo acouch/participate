@@ -25,10 +25,7 @@ interface BudgetEditorProps {
   /** Outcomes already saved for this budget. */
   initialOutcomes: OutcomeItem[];
   /** Server action to persist allocations. */
-  onSave: (
-    uuid: string,
-    allocations: Record<string, number>,
-  ) => Promise<void>;
+  onSave: (uuid: string, allocations: Record<string, number>) => Promise<void>;
   /** Server action to save the intro fields (name and/or tagline). */
   onSaveIntro: (
     uuid: string,
@@ -106,7 +103,11 @@ export default function BudgetEditor({
     if (!text) return;
     // Optimistic: show immediately with a temporary id, reconcile on save.
     const tempId = `temp-${department}-${outcomes.length}-${text.length}`;
-    const optimistic: OutcomeItem = { id: tempId, department, description: text };
+    const optimistic: OutcomeItem = {
+      id: tempId,
+      department,
+      description: text,
+    };
     setOutcomes((prev) => [...prev, optimistic]);
     startTransition(async () => {
       const saved = await onAddOutcome(uuid, department, text);

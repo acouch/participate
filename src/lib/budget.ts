@@ -22,7 +22,10 @@ export const DEFAULT_CATEGORY = "Government Operations";
 
 /** Normalizes a department name for matching (collapses spaces around hyphens). */
 const normalizeName = (name: string) =>
-  name.replace(/\s*-\s*/g, "-").trim().toLowerCase();
+  name
+    .replace(/\s*-\s*/g, "-")
+    .trim()
+    .toLowerCase();
 
 /**
  * Parses data/tagging.yml into a normalized {department -> category} map.
@@ -139,8 +142,7 @@ export async function getEditableFund(): Promise<EditableFund> {
   const departments: EditableDepartment[] = (fund.children ?? [])
     .map((child) => ({
       name: child.name,
-      category:
-        tagging.get(normalizeName(child.name)) ?? DEFAULT_CATEGORY,
+      category: tagging.get(normalizeName(child.name)) ?? DEFAULT_CATEGORY,
       priorAmount: child.gross_cost?.accounts?.[PRIOR_FISCAL_YEAR] ?? 0,
     }))
     .filter((d) => d.priorAmount > 0)

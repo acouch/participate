@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Treemap, { type TreemapDatum } from "@/src/components/Treemap";
@@ -55,10 +61,40 @@ const dollars = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-const signedPct = (pct: number) =>
-  `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
-const pctColor = (pct: number | null) =>
-  pct == null ? "#666" : pct > 0 ? "#16a34a" : pct < 0 ? "#dc2626" : "#666";
+const signedPct = (pct: number) => `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+/**
+ * The current location with the transient ?submitted=1 marker removed — the
+ * URL that should be shared. Cached because useSyncExternalStore requires a
+ * referentially stable snapshot between store changes.
+ */
+let cachedHref = "";
+let cachedClean = "";
+function getCleanLocation(): string {
+  const href = window.location.href;
+  if (href !== cachedHref) {
+    cachedHref = href;
+    const url = new URL(href);
+    url.searchParams.delete("submitted");
+    cachedClean = url.toString();
+  }
+  return cachedClean;
+}
+
+/** history.replaceState doesn't emit an event, so only popstate is observed. */
+function subscribeToLocation(onChange: () => void): () => void {
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
+}
+
+/** Tailwind text color for a percent change: green up, red down, gray flat. */
+const pctColorClass = (pct: number | null) =>
+  pct == null
+    ? "text-neutral-500"
+    : pct > 0
+      ? "text-green-600"
+      : pct < 0
+        ? "text-red-600"
+        : "text-neutral-500";
 
 export default function BudgetReview({
   uuid,
@@ -82,7 +118,7 @@ export default function BudgetReview({
   const [tagline, setTagline] = useState(initialTagline);
   const [info, setInfo] = useState(initialInfo);
   const [outcomes, setOutcomes] = useState(initialOutcomes);
-  const [submittedAt, setSubmittedAt] = useState(initialSubmittedAt);
+  const [submittedAt] = useState(initialSubmittedAt);
   const [copied, setCopied] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -117,30 +153,36 @@ export default function BudgetReview({
 
   // Stable color per category — unused in "change" mode, but Treemap wants it.
   const categoryColor = useMemo(
-    () => ordinalColorScale(Array.from(new Set(lineItems.map((d) => d.category)))),
+    () =>
+      ordinalColorScale(Array.from(new Set(lineItems.map((d) => d.category)))),
     [lineItems],
   );
 
   // Collapsed by default so the written report leads; opened on print so the
   // chart is never silently dropped from a PDF.
-  const [chartOpen, setChartOpen] = useState(false);
+  const [chartOpen, setChartOpen] = useState(true);
   useEffect(() => {
     const before = () => setChartOpen(true);
     window.addEventListener("beforeprint", before);
     return () => window.removeEventListener("beforeprint", before);
   }, []);
 
-  // Resolved after mount to avoid a server/client hydration mismatch. The
-  // ?submitted=1 marker is stripped so the shared/copied URL is always the
-  // clean one — and so a reload doesn't re-show the confirmation banner.
-  const [shareUrl, setShareUrl] = useState("");
+  // The share URL is external (browser) state, so it is read through a store
+  // rather than an effect+setState: empty on the server, the real location
+  // once mounted, which also avoids a hydration mismatch.
+  const shareUrl = useSyncExternalStore(
+    subscribeToLocation,
+    getCleanLocation,
+    () => "",
+  );
+
+  // Strip the ?submitted=1 marker after it has been read, so the copied/shared
+  // URL is always clean and a reload doesn't re-show the confirmation banner.
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.has("submitted")) {
-      url.searchParams.delete("submitted");
-      window.history.replaceState(null, "", url.toString());
-    }
-    setShareUrl(url.toString());
+    if (!url.searchParams.has("submitted")) return;
+    url.searchParams.delete("submitted");
+    window.history.replaceState(null, "", url.toString());
   }, []);
 
   const commitIntro = (fields: {
@@ -203,183 +245,151 @@ export default function BudgetReview({
   const changed = lineItems.filter((d) => d.amount !== d.baselineAmount);
 
   return (
-    <div style={{ padding: "1rem 0 3rem" }}>
+    <div className="pt-4 pb-12">
       {/* Toolbar — hidden when printing. */}
-      {readOnly ?? (
-        <div
-          className="no-print"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "1rem",
-            marginBottom: "1.5rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <Link
-            href={`/budget/${uuid}/edit`}
-            style={{ color: "#2563eb", fontSize: "0.9rem" }}
-          >
+      {!readOnly && (
+        <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-4">
+          <Link href={`/budget/${uuid}/edit`} className="text-sm text-blue-600">
             ← Back to editing
           </Link>
-          <button type="button" onClick={submit} style={primaryButton}>
+          <button type="button" onClick={submit} className="btn-primary">
             Submit budget
           </button>
         </div>
       )}
 
-      {/* Share / print actions float in the bottom corner, to the left of the
-          global Feedback button (fixed at right/bottom 1.25rem, z-index 50). */}
-      <div
-        className="no-print"
-        style={{
-          position: "fixed",
-          right: "10.5rem",
-          bottom: "1.25rem",
-          zIndex: 50,
-          display: "flex",
-          gap: "0.5rem",
-          alignItems: "center",
-        }}
-      >
-        <button type="button" onClick={copyLink} style={floatingButton}>
-          {copied ? "Link copied!" : "Copy share link"}
-        </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          style={floatingButton}
-        >
-          Print / PDF
-        </button>
-      </div>
-
       {readOnly && submittedAt && justSubmitted && (
-        <p
-          className="no-print"
-          style={{
-            padding: "0.6rem 0.9rem",
-            background: "#ecfdf5",
-            border: "1px solid #a7f3d0",
-            borderRadius: "0.5rem",
-            color: "#065f46",
-            fontSize: "0.85rem",
-            marginBottom: "1.5rem",
-          }}
-        >
+        <p className="no-print mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-[0.9rem] py-[0.6rem] text-[0.85rem] text-emerald-800">
           ✓ Submitted {new Date(submittedAt).toLocaleString()}. Share this page:{" "}
-          <span style={{ fontWeight: 600 }}>{shareUrl}</span>
+          <span className="font-semibold">{shareUrl}</span>
         </p>
       )}
 
-      {/* ---- Shareable document ---- */}
-      <p style={{ textTransform: "uppercase", letterSpacing: "0.06em", color: "#888", fontSize: "0.75rem", fontWeight: 600 }}>
-        City of Philadelphia · Proposed budget for FY {fiscalYear}
-      </p>
+      <div className="flex">
+        <div className="w-3/4">
+          {/* Share / print actions float in the bottom corner, to the left of the
+          global Feedback button (fixed at right/bottom 1.25rem, z-index 50). */}
+          <div className="no-print fixed right-[10.5rem] bottom-5 z-50 flex items-center gap-2">
+            <button type="button" onClick={copyLink} className="btn-floating">
+              {copied ? "Link copied!" : "Copy share link"}
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="btn-floating"
+            >
+              Print / PDF
+            </button>
+          </div>
 
-      <EditableText
-        value={name}
-        placeholder="Your mayoral or project name"
-        as="h1"
-        readOnly={readOnly}
-        style={{ fontSize: "2rem", margin: "0.25rem 0" }}
-        onCommit={(v) => {
-          setName(v);
-          commitIntro({ name: v });
-        }}
-      />
-
-      <EditableText
-        value={tagline}
-        placeholder="What does your budget deliver?"
-        as="p"
-        readOnly={readOnly}
-        style={{ fontSize: "1.25rem", fontStyle: "italic", color: "#444", margin: "0 0 1rem" }}
-        onCommit={(v) => {
-          setTagline(v);
-          commitIntro({ tagline: v });
-        }}
-      />
-
-      <p
-        style={{
-          padding: "1rem 0",
-          borderTop: "1px solid #e5e5e5",
-          borderBottom: "1px solid #e5e5e5",
-          marginBottom: "1.5rem",
-          fontSize: "0.95rem",
-          lineHeight: 1.6,
-          color: "#333",
-        }}
-      >
-        This document represents a proposed budget for the General Fund for FY
-        {fiscalYear}. The General Fund for FY{fiscalYear.slice(-2)} was{" "}
-        {dollars.format(totalToSpend)}. This proposed budget includes{" "}
-        <strong
-          style={{
-            color:
-              remaining < 0 ? "#dc2626" : remaining > 0 ? "#2563eb" : "#16a34a",
-          }}
-        >
-          {remaining === 0
-            ? "every dollar allocated"
-            : `${dollars.format(Math.abs(remaining))} ${
-                remaining < 0 ? "over budget" : "unallocated"
-              }`}
-        </strong>
-        .
-      </p>
-
-      {/* Additional information (hidden in the final view when empty) */}
-      {(!readOnly || info) && (
-        <section style={{ marginBottom: "1.5rem" }}>
           <EditableText
-            value={info}
-            placeholder="Add context or further explanation for your budget (optional)…"
-            as="textarea"
+            value={name}
+            placeholder="Your mayoral or project name"
+            as="h1"
             readOnly={readOnly}
-            style={{ fontSize: "0.95rem", lineHeight: 1.6, color: "#333" }}
+            className="my-1 text-[2rem]"
             onCommit={(v) => {
-              setInfo(v);
-              commitIntro({ additionalInfo: v });
+              setName(v);
+              commitIntro({ name: v });
             }}
           />
-        </section>
-      )}
+
+          <EditableText
+            value={tagline}
+            placeholder="What does your budget deliver?"
+            as="p"
+            readOnly={readOnly}
+            className="mt-0 mb-4 text-xl text-neutral-700 italic"
+            onCommit={(v) => {
+              setTagline(v);
+              commitIntro({ tagline: v });
+            }}
+          />
+          {/* Additional information (hidden in the final view when empty) */}
+          {(!readOnly || info) && (
+            <section className="mb-6">
+              <EditableText
+                value={info}
+                placeholder="Add context or further explanation for your budget (optional)…"
+                as="textarea"
+                readOnly={readOnly}
+                className="text-[0.95rem] leading-relaxed text-neutral-800"
+                onCommit={(v) => {
+                  setInfo(v);
+                  commitIntro({ additionalInfo: v });
+                }}
+              />
+            </section>
+          )}
+        </div>
+        <div className="w-1/4 ml-4">
+          <div
+            className="rounded-b px-4 py-3 border-1 border-neutral-200 border-t-2"
+            role="alert"
+          >
+            <div className="flex">
+              <div className="py-1">
+                <svg
+                  className="mr-4 h-6 w-6 fill-current"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z" />
+                </svg>
+              </div>
+              <div>
+                <p className="py-1">
+                  This document represents a proposed budget for the General
+                  Fund for FY
+                  {fiscalYear}.
+                </p>
+                <p className="py-1">
+                  The General Fund for FY{fiscalYear.slice(-2)} was{" "}
+                  <strong>{dollars.format(totalToSpend)}</strong>.
+                </p>
+                <p className="py-1">
+                  This proposed budget includes{" "}
+                  <strong
+                    className={
+                      remaining < 0
+                        ? "text-red-600"
+                        : remaining > 0
+                          ? "text-blue-600"
+                          : "text-green-600"
+                    }
+                  >
+                    {remaining === 0
+                      ? "every dollar allocated"
+                      : `${dollars.format(Math.abs(remaining))} ${
+                          remaining < 0 ? "over budget" : "unallocated"
+                        }`}
+                  </strong>
+                  .
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ---- Budget visualization (collapsible, +/- view only) ---- */}
-      <section style={{ marginBottom: "1.5rem" }}>
+      <section className="my-6">
         <details
           open={chartOpen}
           onToggle={(e) => setChartOpen((e.target as HTMLDetailsElement).open)}
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: "0.75rem",
-            padding: "0.75rem 1rem",
-          }}
+          className="rounded-xl border border-neutral-200 px-4 py-3"
         >
-          <summary
-            style={{
-              cursor: "pointer",
-              fontWeight: 600,
-              fontSize: "0.95rem",
-              listStyle: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <span aria-hidden style={{ color: "#888", fontSize: "0.75rem" }}>
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-[0.95rem] font-semibold">
+            <span aria-hidden className="text-xs text-neutral-500">
               {chartOpen ? "▼" : "▶"}
             </span>
             Budget visualization
-            <span style={{ fontWeight: 400, color: "#888", fontSize: "0.85rem" }}>
+            <span className="text-[0.85rem] font-normal text-neutral-500">
               — funding change vs. FY2026
             </span>
           </summary>
 
-          <div style={{ marginTop: "1rem" }}>
+          <div className="mt-4">
             <ChangeKey />
             {chartOpen && (
               <Treemap
@@ -397,102 +407,50 @@ export default function BudgetReview({
       </section>
 
       {/* ---- What this budget delivers — the emphasized outcomes summary ---- */}
-      <section
-        style={{
-          background: "#f8fafc",
-          border: "1px solid #e5e7eb",
-          borderRadius: "0.75rem",
-          padding: "1.5rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <h2
-          style={{
-            fontSize: "1.35rem",
-            fontWeight: 700,
-            margin: "0 0 1rem",
-          }}
-        >
+      <section className="mb-6 rounded-xl border border-neutral-200 bg-slate-50 p-6">
+        <h2 className="mb-4 text-[1.35rem] font-bold">
           What this budget delivers
         </h2>
         {changed.length === 0 ? (
-          <p style={{ color: "#888", fontSize: "0.95rem" }}>
+          <p className="text-[0.95rem] text-neutral-500">
             No funding changes yet — adjust a department to describe what your
             budget will deliver.
           </p>
         ) : (
-          <ul
-            style={{
-              listStyle: "none",
-              margin: 0,
-              padding: 0,
-              display: "grid",
-              gap: "1.25rem",
-            }}
-          >
+          <ul className="m-0 grid list-none gap-5 p-0">
             {changed.map((d) => {
               const list = outcomesByDept.get(d.name) ?? [];
               return (
                 <li key={d.name}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: "0.5rem",
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    <span style={{ fontWeight: 700, fontSize: "1.05rem" }}>
-                      {d.name}
-                    </span>
+                  <div className="mb-[0.4rem] flex items-baseline gap-2">
+                    <span className="text-[1.05rem] font-bold">{d.name}</span>
                     <span
-                      style={{
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        color: pctColor(d.percentChange),
-                      }}
+                      className={`text-[0.85rem] font-semibold ${pctColorClass(
+                        d.percentChange,
+                      )}`}
                     >
-                      {d.amount > d.baselineAmount ? "more funding" : "less funding"}
+                      {d.amount > d.baselineAmount
+                        ? "more funding"
+                        : "less funding"}
                     </span>
                   </div>
                   {list.length > 0 ? (
-                    <ul
-                      style={{
-                        listStyle: "none",
-                        margin: 0,
-                        padding: 0,
-                        display: "grid",
-                        gap: "0.4rem",
-                      }}
-                    >
+                    <ul className="m-0 grid list-none gap-[0.4rem] p-0">
                       {list.map((o) => (
                         <li
                           key={o.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: "0.5rem",
-                            fontSize: "1rem",
-                            lineHeight: 1.5,
-                            color: "#1f2937",
-                          }}
+                          className="flex items-start gap-2 text-base leading-normal text-gray-800"
                         >
-                          <span aria-hidden style={{ color: "#2563eb" }}>
+                          <span aria-hidden className="text-blue-600">
                             →
                           </span>
-                          <span style={{ flex: 1 }}>{o.description}</span>
+                          <span className="flex-1">{o.description}</span>
                           {!readOnly && (
                             <button
                               type="button"
-                              className="no-print"
+                              className="no-print cursor-pointer border-0 bg-transparent text-neutral-400"
                               onClick={() => removeOutcome(o.id)}
                               aria-label="Delete outcome"
-                              style={{
-                                border: "none",
-                                background: "none",
-                                color: "#bbb",
-                                cursor: "pointer",
-                              }}
                             >
                               ×
                             </button>
@@ -502,17 +460,16 @@ export default function BudgetReview({
                     </ul>
                   ) : (
                     !readOnly && (
-                      <p
-                        className="no-print"
-                        style={{ fontSize: "0.85rem", color: "#dc2626", margin: "0 0 0.4rem" }}
-                      >
+                      <p className="no-print mt-0 mb-[0.4rem] text-[0.85rem] text-red-600">
                         Add an outcome to describe what this change delivers.
                       </p>
                     )
                   )}
                   {!readOnly && (
-                    <div className="no-print" style={{ marginTop: "0.4rem" }}>
-                      <OutcomeAdder onAdd={(text) => addOutcome(d.name, text)} />
+                    <div className="no-print mt-[0.4rem]">
+                      <OutcomeAdder
+                        onAdd={(text) => addOutcome(d.name, text)}
+                      />
                     </div>
                   )}
                 </li>
@@ -523,31 +480,25 @@ export default function BudgetReview({
       </section>
 
       {/* Funding changes — the money view, without outcomes */}
-      <section style={{ marginBottom: "1.5rem" }}>
-        <h2 style={sectionHeading}>Funding changes ({changed.length})</h2>
+      <section className="mb-6">
+        <h2 className="section-heading">Funding changes ({changed.length})</h2>
         {changed.length === 0 ? (
-          <p style={{ color: "#888", fontSize: "0.9rem" }}>
+          <p className="text-sm text-neutral-500">
             No departments changed from the baseline yet.
           </p>
         ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "0.4rem" }}>
+          <ul className="m-0 grid list-none gap-[0.4rem] p-0">
             {changed.map((d) => (
               <li
                 key={d.name}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "1rem",
-                  alignItems: "baseline",
-                  padding: "0.5rem 0.75rem",
-                  border: "1px solid #eee",
-                  borderRadius: "0.5rem",
-                }}
+                className="flex items-baseline justify-between gap-4 rounded-lg border border-neutral-200 px-3 py-2"
               >
-                <span style={{ fontWeight: 600 }}>{d.name}</span>
-                <span style={{ whiteSpace: "nowrap" }}>
+                <span className="font-semibold">{d.name}</span>
+                <span className="whitespace-nowrap">
                   {dollars.format(d.amount)}{" "}
-                  <span style={{ color: pctColor(d.percentChange), fontWeight: 600 }}>
+                  <span
+                    className={`font-semibold ${pctColorClass(d.percentChange)}`}
+                  >
                     ({signedPct(d.percentChange as number)})
                   </span>
                 </span>
@@ -559,26 +510,30 @@ export default function BudgetReview({
 
       {/* Full budget table */}
       <section>
-        <h2 style={sectionHeading}>Full General Fund budget</h2>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+        <h2 className="section-heading">Full General Fund budget</h2>
+        <table className="budget-table w-full border-collapse text-[0.85rem]">
           <thead>
-            <tr style={{ textAlign: "left", color: "#888" }}>
-              <th style={th}>Department</th>
-              <th style={{ ...th, textAlign: "right" }}>Amount</th>
-              <th style={{ ...th, textAlign: "right" }}>vs. FY2026</th>
+            <tr className="text-left text-neutral-500">
+              <th>Department</th>
+              <th className="text-right">Amount</th>
+              <th className="text-right">vs. FY2026</th>
             </tr>
           </thead>
           <tbody>
             {lineItems.map((d) => (
-              <tr key={d.name} style={{ borderTop: "1px solid #f0f0f0" }}>
-                <td style={td}>
+              <tr key={d.name} className="border-t border-neutral-100">
+                <td>
                   {d.name}
-                  <span style={{ color: "#999", marginLeft: "0.4rem", fontSize: "0.75rem" }}>
+                  <span className="ml-[0.4rem] text-xs text-neutral-400">
                     {d.category}
                   </span>
                 </td>
-                <td style={{ ...td, textAlign: "right" }}>{dollars.format(d.amount)}</td>
-                <td style={{ ...td, textAlign: "right", color: pctColor(d.percentChange), fontWeight: 600 }}>
+                <td className="text-right">{dollars.format(d.amount)}</td>
+                <td
+                  className={`text-right font-semibold ${pctColorClass(
+                    d.percentChange,
+                  )}`}
+                >
                   {d.percentChange == null ? "—" : signedPct(d.percentChange)}
                 </td>
               </tr>
@@ -590,78 +545,17 @@ export default function BudgetReview({
   );
 }
 
-const primaryButton: React.CSSProperties = {
-  padding: "0.55rem 1.1rem",
-  fontSize: "0.9rem",
-  fontWeight: 600,
-  border: "none",
-  borderRadius: "0.5rem",
-  background: "#2563eb",
-  color: "#fff",
-  cursor: "pointer",
-};
-const secondaryButton: React.CSSProperties = {
-  padding: "0.55rem 0.9rem",
-  fontSize: "0.9rem",
-  fontWeight: 600,
-  border: "1px solid #d4d4d4",
-  borderRadius: "0.5rem",
-  background: "#fff",
-  color: "#333",
-  cursor: "pointer",
-};
-/** Pill button matching the floating Feedback button it sits beside. */
-const floatingButton: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  whiteSpace: "nowrap",
-  padding: "0.6rem 1rem",
-  fontSize: "0.9rem",
-  fontWeight: 600,
-  border: "1px solid #d4d4d4",
-  borderRadius: "999px",
-  background: "#fff",
-  color: "#333",
-  boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
-  cursor: "pointer",
-};
-const sectionHeading: React.CSSProperties = {
-  fontSize: "0.8rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: "#888",
-  margin: "0 0 0.6rem",
-};
-const th: React.CSSProperties = { padding: "0.4rem 0.5rem", fontWeight: 600 };
-const td: React.CSSProperties = { padding: "0.4rem 0.5rem" };
-
 /**
  * Legend for the +/- coloring: a red→pale→green ramp matching Treemap's
  * diverging change scale (clamped at ±20%).
  */
 function ChangeKey() {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "0.6rem",
-        marginBottom: "0.75rem",
-        fontSize: "0.75rem",
-        color: "#666",
-      }}
-    >
+    <div className="mb-3 flex items-center gap-[0.6rem] text-xs text-neutral-600">
       <span>−20% or less</span>
       <div
         aria-hidden
-        style={{
-          flex: 1,
-          height: "0.6rem",
-          borderRadius: "999px",
-          border: "1px solid #e5e5e5",
-          background:
-            "linear-gradient(to right, rgb(230,20,20), rgb(255,255,230), rgb(20,230,20))",
-        }}
+        className="change-key-ramp h-[0.6rem] flex-1 rounded-full border border-neutral-200"
       />
       <span>+20% or more</span>
     </div>
@@ -677,7 +571,7 @@ function OutcomeAdder({ onAdd }: { onAdd: (text: string) => void }) {
     setText("");
   };
   return (
-    <div style={{ display: "flex", gap: "0.4rem" }}>
+    <div className="flex gap-[0.4rem]">
       <input
         type="text"
         value={text}
@@ -689,24 +583,15 @@ function OutcomeAdder({ onAdd }: { onAdd: (text: string) => void }) {
             submit();
           }
         }}
-        style={{
-          flex: 1,
-          padding: "0.35rem 0.5rem",
-          fontSize: "0.85rem",
-          border: "1px solid #d4d4d4",
-          borderRadius: "0.375rem",
-        }}
+        className="flex-1 rounded-md border border-neutral-300 px-2 py-[0.35rem] text-[0.85rem]"
       />
       <button
         type="button"
         onClick={submit}
         disabled={!text.trim()}
-        style={{
-          ...secondaryButton,
-          padding: "0.35rem 0.7rem",
-          fontSize: "0.8rem",
-          opacity: text.trim() ? 1 : 0.5,
-        }}
+        className={`btn-secondary px-[0.7rem] py-[0.35rem] text-xs ${
+          text.trim() ? "opacity-100" : "opacity-50"
+        }`}
       >
         Add
       </button>

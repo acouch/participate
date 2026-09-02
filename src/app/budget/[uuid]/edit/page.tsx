@@ -45,7 +45,7 @@ export default async function EditPage({ params }: EditPageProps) {
   const savedTagline = data?.tagline ?? "";
 
   return (
-    <main className="lg:px-8 max-w-7xl mx-auto px-4 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <BudgetEditor
         uuid={uuid}
         totalToSpend={fund.totalToSpend}

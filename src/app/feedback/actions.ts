@@ -38,7 +38,7 @@ export async function submitFeedback(fields: {
       data: { name, email, message, path },
     });
     return { ok: true };
-  } catch(e) {
+  } catch (e) {
     console.error(e);
     return { ok: false, error: "Something went wrong. Please try again." };
   }

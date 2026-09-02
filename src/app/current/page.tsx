@@ -14,12 +14,17 @@ export default async function TreemapPage() {
   ]);
 
   return (
-    <main className="lg:px-8 max-w-7xl md:text-center mx-auto px-4 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 sm:px-6 md:text-center lg:px-8">
       <div className="hero">
         <p className="eyebrow">City of Philadelphia</p>
         <h1>Budget by category and fund</h1>
         <p className="lede">
-          City budget for FY {FISCAL_YEAR}, sized by expenses. To learn more about the budget process, visit the <a className="text-[#1a3cb9] underline" href="">People's Budget Office</a>.
+          City budget for FY {FISCAL_YEAR}, sized by expenses. To learn more
+          about the budget process, visit the{" "}
+          <a className="text-[#1a3cb9] underline" href="">
+            People&apos;s Budget Office
+          </a>
+          .
         </p>
       </div>
       <Suspense fallback={null}>

@@ -194,8 +194,27 @@ export default function BudgetTreemap({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  const fundHelp = <><span>The city is funded through over a dozen funding sources, Philadelphia’s <strong>General Fund</strong> being the main operating budget, supported primarily by local taxes like the wage and real estate taxes, while other funds—such as Enterprise Funds, the Grants Fund, and Capital/Special Funds—operate as separate, self-supporting or restricted accounts for specific services. Click on a fund below to explore where the money goes.</span></>
-  const catHelp = <><span>Click on a category below to explore what departments are funded by which funds.</span></>
+  const fundHelp = (
+    <>
+      <span>
+        The city is funded through over a dozen funding sources, Philadelphia’s{" "}
+        <strong>General Fund</strong> being the main operating budget, supported
+        primarily by local taxes like the wage and real estate taxes, while
+        other funds—such as Enterprise Funds, the Grants Fund, and
+        Capital/Special Funds—operate as separate, self-supporting or restricted
+        accounts for specific services. Click on a fund below to explore where
+        the money goes.
+      </span>
+    </>
+  );
+  const catHelp = (
+    <>
+      <span>
+        Click on a category below to explore what departments are funded by
+        which funds.
+      </span>
+    </>
+  );
   const help = view === "category" ? catHelp : fundHelp;
 
   return (
@@ -241,11 +260,22 @@ export default function BudgetTreemap({
 
       {isOverview ? (
         <>
-          <div className="rounded-md mb-4 px-2 py-2 outline-2 text-gray-400 outline-[#1a3cb914] text-left text-sm flex items-start">
-            <svg className="flex-shrink-0 w-4 h-4 mr-1" aria-hidden="true" fill="#b3b3b3" xmlns="http://w3.org" viewBox="0 0 20 20">
-              <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
+          <div className="mb-4 flex items-start rounded-md px-2 py-2 text-left text-sm text-gray-400 outline-2 outline-[#1a3cb914]">
+            <svg
+              className="mr-1 h-4 w-4 flex-shrink-0"
+              aria-hidden="true"
+              fill="#b3b3b3"
+              xmlns="http://w3.org"
+              viewBox="0 0 20 20"
+            >
+              <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
             </svg>
-            <div>This chart shows how each fund flows to the departments it pays for. Each fund shows its largest departments individually; smaller ones are grouped into an “Other” band. Hover a flow for its amount.</div>
+            <div>
+              This chart shows how each fund flows to the departments it pays
+              for. Each fund shows its largest departments individually; smaller
+              ones are grouped into an “Other” band. Hover a flow for its
+              amount.
+            </div>
           </div>
           <FundSankey flows={flows} />
         </>

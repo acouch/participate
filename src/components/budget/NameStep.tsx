@@ -21,9 +21,9 @@ export default function NameStep({
     <>
       <h1>Welcome</h1>
       <p className="lede" style={{ fontSize: "1rem", lineHeight: 1.6 }}>
-        This is your chance to propose Philly&rsquo;s budget. This tool
-        imagines you have the power of the mayor to propose how Philly will
-        spend the General Fund, the discretionary part of Philly&rsquo;s money.
+        This is your chance to propose Philly&rsquo;s budget. This tool imagines
+        you have the power of the mayor to propose how Philly will spend the
+        General Fund, the discretionary part of Philly&rsquo;s money.
       </p>
       <p
         className="lede"
@@ -33,8 +33,8 @@ export default function NameStep({
           marginTop: "0.75rem",
         }}
       >
-        You have <strong>{dollars.format(totalToSpend)}</strong> for fiscal
-        year 2027, which started July 1, 2026.
+        You have <strong>{dollars.format(totalToSpend)}</strong> for fiscal year
+        2027, which started July 1, 2026.
       </p>
 
       <label

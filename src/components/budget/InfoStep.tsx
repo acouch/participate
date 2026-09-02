@@ -31,7 +31,7 @@ export default function InfoStep({
 }: InfoStepProps) {
   const step3 = (
     <p className="lede" style={paragraphStyle}>
-      You have <strong>{dollars.format(totalToSpend)}</strong>{" "} to spend, which
+      You have <strong>{dollars.format(totalToSpend)}</strong> to spend, which
       is the same as Parker&rsquo;s proposed 2027 budget. This is a 1.8%
       increase from FY2026. That has been applied to all of the departments,
       with <strong>{dollars.format(baselineRemaining)}</strong> left over to
@@ -55,7 +55,7 @@ export default function InfoStep({
   return (
     <>
       <h1>{step === 6 ? "WAIT…" : name}</h1>
-      <h2 className="text-2xl text-gray-400 italic py-4">{tag}</h2>
+      <h2 className="py-4 text-2xl text-gray-400 italic">{tag}</h2>
       {step === 3 && <>{step3}</>}
       {step === 4 && (
         <>

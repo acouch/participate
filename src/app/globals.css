@@ -10,7 +10,8 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   background: #fff;
   color: #111;
 }
@@ -32,13 +33,6 @@ body {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-h1 {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 600;
-  line-height: 1.4;
 }
 
 .lede {
@@ -127,4 +121,50 @@ code {
   .no-print {
     display: none !important;
   }
+}
+
+/* ---- Budget review document ---------------------------------------------
+   Shared classes for the proposed-budget report (BudgetReview). Composed from
+   Tailwind utilities so the utilities stay the source of truth. */
+
+.btn-primary {
+  @apply cursor-pointer rounded-lg border-0 bg-blue-600 px-[1.1rem] py-[0.55rem] text-sm font-semibold text-white;
+}
+
+/* Size (padding / text) is left to the caller so smaller variants — like the
+   inline "Add outcome" button — can set their own without fighting @apply. */
+.btn-secondary {
+  @apply cursor-pointer rounded-lg border border-neutral-300 bg-white font-semibold text-neutral-700;
+}
+
+.btn-secondary-md {
+  @apply px-[0.9rem] py-[0.55rem] text-sm;
+}
+
+/* Pill button matching the floating Feedback button it sits beside. */
+.btn-floating {
+  @apply inline-flex cursor-pointer items-center rounded-full border border-neutral-300 bg-white px-4 py-[0.6rem] text-sm font-semibold whitespace-nowrap text-neutral-700 shadow-[0_4px_14px_rgba(0,0,0,0.18)];
+}
+
+.section-heading {
+  @apply mb-[0.6rem] text-xs font-normal tracking-[0.05em] text-neutral-500 uppercase;
+}
+
+.budget-table th {
+  @apply px-2 py-[0.4rem] font-semibold;
+}
+
+.budget-table td {
+  @apply px-2 py-[0.4rem];
+}
+
+/* The +/- legend ramp mirrors Treemap's diverging change scale, so its stop
+   colors are exact rather than palette approximations. */
+.change-key-ramp {
+  background: linear-gradient(
+    to right,
+    rgb(230, 20, 20),
+    rgb(255, 255, 230),
+    rgb(20, 230, 20)
+  );
 }

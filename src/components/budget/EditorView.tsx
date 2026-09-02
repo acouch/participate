@@ -71,10 +71,12 @@ export default function EditorView({
     <div>
       <div className="hero" style={{ marginBottom: "1.5rem" }}>
         <h1>{name}</h1>
-        {tagline && (<h2 className="text-2xl text-gray-400 italic py-4">{tagline}</h2>)}
-        <p className="lede" style={{ fontSize: "1.2rem"}}>
-          You have <strong>{dollars.format(totalToSpend)}</strong> to spend through the General
-          Fund.
+        {tagline && (
+          <h2 className="py-4 text-2xl text-gray-400 italic">{tagline}</h2>
+        )}
+        <p className="lede" style={{ fontSize: "1.2rem" }}>
+          You have <strong>{dollars.format(totalToSpend)}</strong> to spend
+          through the General Fund.
         </p>
         <p
           className="lede"
