@@ -8,12 +8,10 @@ export const metadata = {
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-7xl px-4 pt-20 pb-10 sm:px-6 lg:px-8 lg:pt-8">
+    <main className="mx-auto max-w-7xl px-4 pt-20 pb-10 sm:px-6 lg:px-8 lg:pt-5">
       <div className="md:flex">
         <div className="flex-1 md:w-1/2">
-          <h1 className="py-2 text-3xl font-bold">
-            Make your budget for Philly
-          </h1>
+          <h1 className="py-2 text-3xl">Make your budget for Philly</h1>
           <p className="py-5">
             This is your chance to make a realistic budget for the city.
           </p>
