@@ -167,8 +167,14 @@ export default function BudgetReview({
   // Collapsed by default so the written report leads; opened on print so the
   // chart is never silently dropped from a PDF.
   const [chartOpen, setChartOpen] = useState(true);
+  // The full department table starts collapsed — it is reference detail, so it
+  // shouldn't push the summary off the page.
+  const [tableOpen, setTableOpen] = useState(false);
   useEffect(() => {
-    const before = () => setChartOpen(true);
+    const before = () => {
+      setChartOpen(true);
+      setTableOpen(true);
+    };
     window.addEventListener("beforeprint", before);
     return () => window.removeEventListener("beforeprint", before);
   }, []);
@@ -558,38 +564,57 @@ export default function BudgetReview({
         )}
       </section>
       */}
-      {/* Full budget table */}
-      <section>
-        <h2 className="section-heading">Full General Fund budget</h2>
-        <table className="budget-table w-full border-collapse text-[0.85rem]">
-          <thead>
-            <tr className="text-left text-neutral-500">
-              <th>Department</th>
-              <th className="text-right">Amount</th>
-              <th className="text-right">vs. FY{priorFiscalYear}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lineItems.map((d) => (
-              <tr key={d.name} className="border-t border-neutral-100">
-                <td>
-                  {d.name}
-                  <span className="ml-[0.4rem] text-xs text-neutral-400">
-                    {d.category}
-                  </span>
-                </td>
-                <td className="text-right">{dollars.format(d.amount)}</td>
-                <td
-                  className={`text-right font-semibold ${pctColorClass(
-                    d.percentChange,
-                  )}`}
-                >
-                  {d.percentChange == null ? "—" : signedPct(d.percentChange)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Full budget table (collapsible, collapsed by default) */}
+      <section className="my-6">
+        <details
+          open={tableOpen}
+          onToggle={(e) => setTableOpen((e.target as HTMLDetailsElement).open)}
+          className="rounded-xl border border-neutral-200 px-4 py-3"
+        >
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-[0.95rem] font-semibold">
+            <span aria-hidden className="text-xs text-neutral-500">
+              {tableOpen ? "▼" : "▶"}
+            </span>
+            Full General Fund budget
+            <span className="text-[0.85rem] font-normal text-neutral-500">
+              — all {lineItems.length} departments
+            </span>
+          </summary>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="budget-table w-full border-collapse text-[0.85rem]">
+              <thead>
+                <tr className="text-left text-neutral-500">
+                  <th>Department</th>
+                  <th className="text-right">Amount</th>
+                  <th className="text-right">vs. FY{priorFiscalYear}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.map((d) => (
+                  <tr key={d.name} className="border-t border-neutral-100">
+                    <td>
+                      {d.name}
+                      <span className="ml-[0.4rem] text-xs text-neutral-400">
+                        {d.category}
+                      </span>
+                    </td>
+                    <td className="text-right">{dollars.format(d.amount)}</td>
+                    <td
+                      className={`text-right font-semibold ${pctColorClass(
+                        d.percentChange,
+                      )}`}
+                    >
+                      {d.percentChange == null
+                        ? "—"
+                        : signedPct(d.percentChange)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </section>
     </div>
   );

@@ -23,7 +23,8 @@ export default function Home() {
           </Link>
         </div>
         <div className="flex-1 sm:py-12 md:py-0">
-          <h2 className="py-2 text-3xl">View this year&apos;s budget</h2>
+          <h2 className="py-2 text-3xl" style={{ paddingBottom: "1rem",
+  paddingTop: "0.5rem"}}>View this year&apos;s budget</h2>
           <Link href="/current">
             <Image
               loading="eager"
