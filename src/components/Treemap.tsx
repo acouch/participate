@@ -35,7 +35,7 @@ const changeColorScale = scaleLinear<string>()
 const NO_CHANGE_COLOR = "rgb(200,200,200)"; // unknown percent change
 
 /** Picks black or white text for legibility against any CSS color fill. */
-function readableTextColor(fill: string): string {
+export function readableTextColor(fill: string): string {
   const c = hcl(fill);
   // HCL lightness (0–100) tracks perceived brightness well enough here.
   return Number.isFinite(c.l) && c.l > 65 ? "#1a1a1a" : "#fff";
@@ -135,7 +135,7 @@ const CHAR_WIDTH = 6.8; // conservative px per char at 12px sans-serif
  * Greedily wraps `text` into lines that fit `maxWidth` (in px), estimating
  * width from character count. Words longer than the line are hard-broken.
  */
-function wrapText(text: string, maxWidth: number): string[] {
+export function wrapText(text: string, maxWidth: number): string[] {
   const maxChars = Math.max(1, Math.floor(maxWidth / CHAR_WIDTH));
   const lines: string[] = [];
   let line = "";

@@ -3,8 +3,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 import phillyBudgetLogo from "@/src/assets/phillybudgetlogo.svg";
+import AuthNav, { type AuthNavUser } from "@/src/components/auth/AuthNav";
 
-export default function Menu() {
+interface MenuProps {
+  /** The signed-in user, resolved on the server in the root layout. */
+  user: AuthNavUser | null;
+}
+
+export default function Menu({ user }: MenuProps) {
   useEffect(() => {
     const btn = document.getElementById("mobile-menu-toggle");
     const panel = document.getElementById("mobile-menu-panel");
@@ -52,6 +58,7 @@ export default function Menu() {
               />
             </Link>
           </div>
+          <AuthNav user={user} />
         </nav>
       </div>
     </header>

@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import Link from "next/link";
 import Treemap, { type TreemapDatum } from "@/src/components/Treemap";
 import DepartmentList from "@/src/components/budget/DepartmentList";
+import SaveProgressPrompt from "@/src/components/auth/SaveProgressPrompt";
 import OutcomesList from "@/src/components/budget/OutcomesList";
 import {
   dollars,
@@ -13,6 +14,8 @@ import {
 
 interface EditorViewProps {
   uuid: string;
+  /** Whether a user is signed in; signed-out users see the save prompt. */
+  signedIn: boolean;
   tagline: string;
   totalToSpend: number;
   totalSpent: number;
@@ -43,6 +46,7 @@ interface EditorViewProps {
 /** The main editor view shown once the welcome flow is complete. */
 export default function EditorView({
   uuid,
+  signedIn,
   tagline,
   totalToSpend,
   totalSpent,
@@ -69,6 +73,7 @@ export default function EditorView({
 }: EditorViewProps) {
   return (
     <div>
+      {!signedIn && <SaveProgressPrompt uuid={uuid} />}
       <div className="hero" style={{ marginBottom: "1.5rem" }}>
         <h1>{name}</h1>
         {tagline && (

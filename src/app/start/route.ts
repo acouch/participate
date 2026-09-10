@@ -2,12 +2,15 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/src/lib/prisma";
 import { Prisma } from "@/src/generated/prisma/client";
 import { shortId } from "@/src/lib/id";
+import { getCurrentUser } from "@/src/lib/session";
 import type { BudgetData } from "@/src/app/budget/[uuid]/actions";
 
 // Visiting /start creates a new (empty) Budget with a 5-character id and
-// redirects to the editor at /budget/{id}/edit.
+// redirects to the editor at /budget/{id}/edit. Signing in is not required;
+// budgets made while signed in are linked to that user.
 export async function GET() {
   const data: BudgetData = { allocations: {} };
+  const user = await getCurrentUser();
 
   let id = "";
   // Retry on the rare 5-char id collision (unique primary key violation).
@@ -17,6 +20,7 @@ export async function GET() {
         data: {
           id: shortId(),
           data: data as unknown as Prisma.InputJsonValue,
+          userId: user?.id ?? null,
         },
       });
       id = budget.id;

@@ -1,0 +1,107 @@
+import { describe, expect, it, vi } from "vitest";
+import { claimBudgetForUser, type BudgetClaimStore } from "./budget-ownership";
+
+/** A budget delegate that reports how many rows a guarded update matched. */
+function store(matched: number): BudgetClaimStore & {
+  updateMany: ReturnType<typeof vi.fn>;
+} {
+  return { updateMany: vi.fn().mockResolvedValue({ count: matched }) };
+}
+
+describe("claimBudgetForUser", () => {
+  it("claims an unowned budget for the signed-in user", async () => {
+    const budgets = store(1);
+    const claimed = await claimBudgetForUser(budgets, {
+      budgetId: "abc12",
+      currentUserId: "user-1",
+      ownerId: null,
+    });
+
+    expect(claimed).toBe(true);
+    expect(budgets.updateMany).toHaveBeenCalledWith({
+      where: { id: "abc12", userId: null },
+      data: { userId: "user-1" },
+    });
+  });
+
+  it("does nothing for a signed-out visitor", async () => {
+    const budgets = store(1);
+    const claimed = await claimBudgetForUser(budgets, {
+      budgetId: "abc12",
+      currentUserId: null,
+      ownerId: null,
+    });
+
+    expect(claimed).toBe(false);
+    expect(budgets.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("never transfers a budget that someone else already owns", async () => {
+    // Budget URLs are short and shareable, so opening someone else's link
+    // while signed in must not take their budget.
+    const budgets = store(1);
+    const claimed = await claimBudgetForUser(budgets, {
+      budgetId: "abc12",
+      currentUserId: "user-2",
+      ownerId: "user-1",
+    });
+
+    expect(claimed).toBe(false);
+    expect(budgets.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op when the user already owns the budget", async () => {
+    const budgets = store(1);
+    const claimed = await claimBudgetForUser(budgets, {
+      budgetId: "abc12",
+      currentUserId: "user-1",
+      ownerId: "user-1",
+    });
+
+    expect(claimed).toBe(false);
+    expect(budgets.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("guards the update on userId so a concurrent claim cannot be overwritten", async () => {
+    // The stale read is the whole hazard: two requests both see ownerId null,
+    // and only the where-clause guard stops the loser from reassigning it.
+    const budgets = store(0);
+    await claimBudgetForUser(budgets, {
+      budgetId: "abc12",
+      currentUserId: "user-2",
+      ownerId: null,
+    });
+
+    expect(budgets.updateMany.mock.calls[0][0].where).toEqual({
+      id: "abc12",
+      userId: null,
+    });
+  });
+
+  it("reports no claim when a concurrent request won the race", async () => {
+    // updateMany matching zero rows is the expected outcome here, not an
+    // error — a plain update() would throw P2025 and 500 the page.
+    const budgets = store(0);
+    const claimed = await claimBudgetForUser(budgets, {
+      budgetId: "abc12",
+      currentUserId: "user-2",
+      ownerId: null,
+    });
+
+    expect(claimed).toBe(false);
+  });
+
+  it("does not swallow real database failures", async () => {
+    const budgets: BudgetClaimStore = {
+      updateMany: vi.fn().mockRejectedValue(new Error("connection lost")),
+    };
+
+    await expect(
+      claimBudgetForUser(budgets, {
+        budgetId: "abc12",
+        currentUserId: "user-1",
+        ownerId: null,
+      }),
+    ).rejects.toThrow("connection lost");
+  });
+});

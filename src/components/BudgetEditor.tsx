@@ -14,6 +14,8 @@ export type { EditorDepartment, OutcomeItem };
 
 interface BudgetEditorProps {
   uuid: string;
+  /** Whether a user is signed in; drives the save-progress prompt. */
+  signedIn: boolean;
   totalToSpend: number;
   /** Current fiscal year, e.g. "2027". */
   fiscalYear: string;
@@ -49,6 +51,7 @@ interface BudgetEditorProps {
 
 export default function BudgetEditor({
   uuid,
+  signedIn,
   totalToSpend,
   fiscalYear,
   priorFiscalYear,
@@ -314,6 +317,7 @@ export default function BudgetEditor({
     <>
       <EditorView
         uuid={uuid}
+        signedIn={signedIn}
         name={name}
         tagline={tagline}
         totalToSpend={totalToSpend}
