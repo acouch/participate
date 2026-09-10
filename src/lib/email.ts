@@ -152,3 +152,44 @@ export async function notifyBudgetSubmitted({
     text: `${title} was submitted.\n${tagline?.trim() ? tagline.trim() + "\n" : ""}${depts}\n\n${url}`,
   });
 }
+
+/**
+ * Escapes text for interpolation into an HTML email body. Feedback is
+ * arbitrary text from anonymous visitors, so it must never be trusted as
+ * markup in an admin's inbox.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Notifies admins that someone left site feedback. */
+export async function notifyFeedbackPosted({
+  name,
+  email,
+  message,
+  path,
+}: {
+  name?: string | null;
+  email?: string | null;
+  message: string;
+  path?: string | null;
+}): Promise<void> {
+  const from = name?.trim() || "Someone";
+  const contact = email?.trim();
+  const where = path?.trim();
+
+  await notifyAdmins({
+    subject: `New feedback from ${from}`,
+    html: `
+      <p><strong>${escapeHtml(from)}</strong>${contact ? ` (${escapeHtml(contact)})` : ""} left feedback${where ? ` on <code>${escapeHtml(where)}</code>` : ""}:</p>
+      <blockquote style="border-left:3px solid #ccc;margin:0;padding-left:1em;white-space:pre-wrap">${escapeHtml(message)}</blockquote>
+      ${contact ? `<p><a href="mailto:${encodeURIComponent(contact)}">Reply to ${escapeHtml(contact)}</a></p>` : "<p>No email address was given, so there is no way to reply.</p>"}
+    `,
+    text: `${from}${contact ? ` (${contact})` : ""} left feedback${where ? ` on ${where}` : ""}:\n\n${message}\n`,
+  });
+}

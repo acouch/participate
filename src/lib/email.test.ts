@@ -202,3 +202,95 @@ describe("admin notifications", () => {
     expect(log.mock.calls[0]?.join(" ")).toContain("admin@example.com");
   });
 });
+
+describe("escapeHtml", () => {
+  it("neutralizes tags and quotes", async () => {
+    const { escapeHtml } = await load();
+    expect(escapeHtml('<script>alert("x")</script>')).toBe(
+      "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;",
+    );
+  });
+
+  it("escapes ampersands first so entities are not double-broken", async () => {
+    const { escapeHtml } = await load();
+    expect(escapeHtml("Tom & Jerry <b>")).toBe("Tom &amp; Jerry &lt;b&gt;");
+  });
+
+  it("leaves ordinary text alone", async () => {
+    const { escapeHtml } = await load();
+    expect(escapeHtml("More money for libraries, please!")).toBe(
+      "More money for libraries, please!",
+    );
+  });
+});
+
+describe("notifyFeedbackPosted", () => {
+  beforeEach(() => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    vi.stubEnv("NODE_ENV", "production");
+  });
+
+  it("emails admins with the message, name and page", async () => {
+    const { notifyFeedbackPosted } = await load();
+    await notifyFeedbackPosted({
+      name: "Ada",
+      email: "ada@example.com",
+      message: "The treemap is hard to read on mobile.",
+      path: "/budget/abc12/edit",
+    });
+
+    const payload = send.mock.calls[0][0];
+    expect(payload.to).toEqual(["admin@example.com"]);
+    expect(payload.subject).toContain("Ada");
+    expect(payload.html).toContain("The treemap is hard to read on mobile.");
+    expect(payload.html).toContain("/budget/abc12/edit");
+    expect(payload.html).toContain("mailto:");
+  });
+
+  it("escapes HTML in the message so feedback cannot inject markup", async () => {
+    // Feedback is anonymous free text; unescaped it would render as markup
+    // in the admin's mail client.
+    const { notifyFeedbackPosted } = await load();
+    await notifyFeedbackPosted({
+      message: '<img src=x onerror="alert(1)">',
+      name: "<b>bold</b>",
+    });
+
+    const html = send.mock.calls[0][0].html;
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<b>bold</b>");
+    expect(html).toContain("&lt;img");
+  });
+
+  it("says so when no reply address was given", async () => {
+    const { notifyFeedbackPosted } = await load();
+    await notifyFeedbackPosted({ message: "Anonymous note" });
+    const html = send.mock.calls[0][0].html;
+    expect(html).toContain("no way to reply");
+    expect(html).not.toContain("mailto:");
+  });
+
+  it("falls back to 'Someone' when no name is given", async () => {
+    const { notifyFeedbackPosted } = await load();
+    await notifyFeedbackPosted({ message: "hi" });
+    expect(send.mock.calls[0][0].subject).toContain("Someone");
+  });
+
+  it("never throws when sending fails", async () => {
+    // Feedback is already saved by this point; a mail failure must not turn
+    // a successful submission into an error for the visitor.
+    send.mockRejectedValue(new Error("resend down"));
+    const { notifyFeedbackPosted } = await load();
+    await expect(
+      notifyFeedbackPosted({ message: "hi" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("sends nothing when no admins are configured", async () => {
+    process.env.ADMIN_EMAILS = "";
+    const { notifyFeedbackPosted } = await load();
+    await notifyFeedbackPosted({ message: "hi" });
+    expect(send).not.toHaveBeenCalled();
+  });
+});

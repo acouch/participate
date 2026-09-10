@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/src/lib/prisma";
+import { notifyFeedbackPosted } from "@/src/lib/email";
 
 export interface FeedbackResult {
   ok: boolean;
@@ -37,6 +38,8 @@ export async function submitFeedback(fields: {
     await prisma.feedback.create({
       data: { name, email, message, path },
     });
+    // After the write: feedback is saved even if the notification fails.
+    await notifyFeedbackPosted({ name, email, message, path });
     return { ok: true };
   } catch (e) {
     console.error(e);
