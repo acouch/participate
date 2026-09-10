@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import BudgetReview from "@/src/components/BudgetReview";
 import { prisma } from "@/src/lib/prisma";
+import { getCurrentUser } from "@/src/lib/session";
+import { canEditBudget } from "@/src/lib/budget-ownership";
 import { buildLineItems } from "@/src/lib/budget-math";
 import {
   getEditableFund,
@@ -26,7 +28,7 @@ interface ReviewPageProps {
 export default async function ReviewPage({ params }: ReviewPageProps) {
   const { uuid } = await params;
 
-  const [budget, fund] = await Promise.all([
+  const [budget, fund, user] = await Promise.all([
     prisma.budget.findUnique({
       where: { id: uuid },
       include: {
@@ -37,8 +39,16 @@ export default async function ReviewPage({ params }: ReviewPageProps) {
       },
     }),
     getEditableFund(),
+    getCurrentUser(),
   ]);
   if (!budget) notFound();
+
+  // Only the owner may review (and submit) an owned budget.
+  if (
+    !canEditBudget({ currentUserId: user?.id ?? null, ownerId: budget.userId })
+  ) {
+    redirect(`/budget/${uuid}`);
+  }
 
   const data = budget.data as unknown as BudgetData | null;
 

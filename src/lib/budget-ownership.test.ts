@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { claimBudgetForUser, type BudgetClaimStore } from "./budget-ownership";
+import {
+  canEditBudget,
+  claimBudgetForUser,
+  type BudgetClaimStore,
+} from "./budget-ownership";
 
 /** A budget delegate that reports how many rows a guarded update matched. */
 function store(matched: number): BudgetClaimStore & {
@@ -103,5 +107,36 @@ describe("claimBudgetForUser", () => {
         ownerId: null,
       }),
     ).rejects.toThrow("connection lost");
+  });
+});
+
+describe("canEditBudget", () => {
+  it("lets the owner edit their own budget", () => {
+    expect(canEditBudget({ currentUserId: "user-1", ownerId: "user-1" })).toBe(
+      true,
+    );
+  });
+
+  it("blocks a different signed-in user", () => {
+    // The rule this whole module exists for: budget URLs are short and
+    // shareable, so opening someone else's link must not allow edits.
+    expect(canEditBudget({ currentUserId: "user-2", ownerId: "user-1" })).toBe(
+      false,
+    );
+  });
+
+  it("blocks a signed-out visitor on an owned budget", () => {
+    expect(canEditBudget({ currentUserId: null, ownerId: "user-1" })).toBe(
+      false,
+    );
+  });
+
+  it("leaves unowned budgets open to anyone", () => {
+    // Anonymous /start budgets and every budget made before accounts existed
+    // have no owner; locking those would strand them.
+    expect(canEditBudget({ currentUserId: null, ownerId: null })).toBe(true);
+    expect(canEditBudget({ currentUserId: "user-1", ownerId: null })).toBe(
+      true,
+    );
   });
 });

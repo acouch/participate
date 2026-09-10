@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/src/lib/prisma";
 import { Prisma } from "@/src/generated/prisma/client";
+import { assertCanEditBudget } from "@/src/lib/budget-access";
 
 /** Shape stored in Budget.data for the editor. */
 export interface BudgetData {
@@ -40,6 +41,7 @@ export async function saveAllocations(
   uuid: string,
   allocations: Record<string, number>,
 ): Promise<void> {
+  await assertCanEditBudget(uuid);
   const current = await readData(uuid);
   const data: BudgetData = { ...current, allocations };
   await prisma.budget.update({
@@ -57,6 +59,7 @@ export async function saveIntro(
   uuid: string,
   fields: { name?: string; tagline?: string; additionalInfo?: string },
 ): Promise<void> {
+  await assertCanEditBudget(uuid);
   const current = await readData(uuid);
   const data: BudgetData = { ...current };
   if (fields.name !== undefined) data.name = fields.name.trim();
@@ -77,6 +80,7 @@ export async function submitBudget(
   uuid: string,
   submittedAtIso: string,
 ): Promise<void> {
+  await assertCanEditBudget(uuid);
   const current = await readData(uuid);
   const data: BudgetData = { ...current, submittedAt: submittedAtIso };
   await prisma.budget.update({
@@ -100,6 +104,7 @@ export async function addOutcome(
   department: string,
   description: string,
 ): Promise<OutcomeItem | null> {
+  await assertCanEditBudget(uuid);
   const text = description.trim();
   if (!text) return null;
   const outcome = await prisma.outcome.create({
@@ -116,7 +121,10 @@ export async function deleteOutcome(
   uuid: string,
   outcomeId: string,
 ): Promise<void> {
-  await prisma.outcome.delete({ where: { id: outcomeId } });
+  await assertCanEditBudget(uuid);
+  // Scoped to the budget just authorized: deleting by outcome id alone would
+  // let a caller pass their own budget's id with someone else's outcome.
+  await prisma.outcome.deleteMany({ where: { id: outcomeId, budgetId: uuid } });
   revalidatePath(`/budget/${uuid}`);
   revalidatePath(`/budget/${uuid}/review`);
 }

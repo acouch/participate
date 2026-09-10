@@ -40,9 +40,9 @@ export default function AuthNav({ user }: { user: AuthNavUser | null }) {
     >
       {user ? (
         <>
-          <span style={{ fontSize: "0.85rem", color: "#444" }}>
+          <Link href="/account" style={linkStyle}>
             {user.name}
-          </span>
+          </Link>
           <button
             type="button"
             onClick={handleSignOut}

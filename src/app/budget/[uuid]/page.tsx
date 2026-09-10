@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import BudgetReview from "@/src/components/BudgetReview";
 import { prisma } from "@/src/lib/prisma";
+import { getCurrentUser } from "@/src/lib/session";
+import { canEditBudget } from "@/src/lib/budget-ownership";
 import { buildLineItems } from "@/src/lib/budget-math";
 import {
   getEditableFund,
@@ -26,7 +28,7 @@ export default async function BudgetPage({
   // Set only by the redirect right after submitting — see BudgetReview.submit.
   const justSubmitted = submitted === "1";
 
-  const [budget, fund] = await Promise.all([
+  const [budget, fund, user] = await Promise.all([
     prisma.budget.findUnique({
       where: { id: uuid },
       include: {
@@ -37,16 +39,23 @@ export default async function BudgetPage({
       },
     }),
     getEditableFund(),
+    getCurrentUser(),
   ]);
   if (!budget) notFound();
 
   const data = budget.data as unknown as BudgetData | null;
 
-  // The bare URL is the final, submitted view. If not yet submitted, send the
-  // user back to the editor.
-  if (!data?.submittedAt) redirect(`/budget/${uuid}/edit`);
+  // The bare URL is the final, submitted view. A draft belongs in the editor,
+  // but only for someone allowed to edit it — bouncing a non-owner there would
+  // ping-pong, since the editor sends them straight back here.
+  const mayEdit = canEditBudget({
+    currentUserId: user?.id ?? null,
+    ownerId: budget.userId,
+  });
+  if (!data?.submittedAt && mayEdit) redirect(`/budget/${uuid}/edit`);
 
-  const allocations = data.allocations ?? {};
+  // A non-owner can land here on an unsubmitted draft, so data may be absent.
+  const allocations = data?.allocations ?? {};
   const lineItems = buildLineItems(fund.departments, allocations);
 
   return (
@@ -58,10 +67,10 @@ export default async function BudgetPage({
         fiscalYear={FISCAL_YEAR}
         priorFiscalYear={PRIOR_FISCAL_YEAR}
         totalToSpend={fund.totalToSpend}
-        name={data.name ?? ""}
-        tagline={data.tagline ?? ""}
-        additionalInfo={data.additionalInfo ?? ""}
-        submittedAt={data.submittedAt}
+        name={data?.name ?? ""}
+        tagline={data?.tagline ?? ""}
+        additionalInfo={data?.additionalInfo ?? ""}
+        submittedAt={data?.submittedAt ?? null}
         lineItems={lineItems}
         outcomes={budget.outcomes}
       />

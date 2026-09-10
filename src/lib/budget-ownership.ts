@@ -1,3 +1,23 @@
+/**
+ * Whether the current visitor may edit a budget.
+ *
+ * Unowned budgets stay open to anyone with the link, which keeps the
+ * anonymous /start flow and every budget made before accounts existed
+ * working. Once a budget has an owner, only that owner may change it.
+ */
+export function canEditBudget({
+  currentUserId,
+  ownerId,
+}: {
+  /** The signed-in user's id, or null when signed out. */
+  currentUserId: string | null;
+  /** The budget's owner, or null when unowned. */
+  ownerId: string | null;
+}): boolean {
+  if (ownerId === null) return true;
+  return currentUserId === ownerId;
+}
+
 /** The slice of Prisma's budget delegate this module needs. */
 export interface BudgetClaimStore {
   updateMany(args: {

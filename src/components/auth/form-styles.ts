@@ -24,9 +24,11 @@ export const buttonStyle = (enabled: boolean): React.CSSProperties => ({
   fontWeight: 600,
   border: "none",
   borderRadius: "0.5rem",
-  background: "#1a3cb9",
+  background: "var(--color-blue-800)",
   color: "#fff",
   cursor: enabled ? "pointer" : "not-allowed",
+  // The dimming is what makes the disabled state readable — without it the
+  // button looks clickable while the form is still incomplete.
   opacity: enabled ? 1 : 0.5,
 });
 
