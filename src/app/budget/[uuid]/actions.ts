@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/src/lib/prisma";
 import { Prisma } from "@/src/generated/prisma/client";
 import { assertCanEditBudget } from "@/src/lib/budget-access";
+import { notifyBudgetStarted, notifyBudgetSubmitted } from "@/src/lib/email";
+import { isFirstMeaningfulEdit } from "@/src/lib/first-edit";
 
 /** Shape stored in Budget.data for the editor. */
 export interface BudgetData {
@@ -16,6 +18,11 @@ export interface BudgetData {
   additionalInfo?: string;
   /** ISO timestamp when the budget was submitted; unset while a draft. */
   submittedAt?: string;
+  /**
+   * Set once admins have been told this budget is real work, so the
+   * notification fires on the first meaningful edit and never again.
+   */
+  notifiedAt?: string;
 }
 
 /** Reads the current Budget.data, tolerating a missing/legacy record. */
@@ -30,6 +37,7 @@ async function readData(uuid: string): Promise<BudgetData> {
     tagline: data.tagline,
     additionalInfo: data.additionalInfo,
     submittedAt: data.submittedAt,
+    notifiedAt: data.notifiedAt,
   };
 }
 
@@ -44,11 +52,29 @@ export async function saveAllocations(
   await assertCanEditBudget(uuid);
   const current = await readData(uuid);
   const data: BudgetData = { ...current, allocations };
+
+  // Moving money is the first sign a budget is real work rather than an
+  // abandoned /start. Stamp the flag in the same write so concurrent saves
+  // cannot both decide they were first.
+  const firstMeaningfulEdit = isFirstMeaningfulEdit({
+    allocations,
+    alreadyNotified: Boolean(current.notifiedAt),
+  });
+  if (firstMeaningfulEdit) data.notifiedAt = new Date().toISOString();
+
   await prisma.budget.update({
     where: { id: uuid },
     data: { data: data as unknown as Prisma.InputJsonValue },
   });
   revalidatePath(`/budget/${uuid}`);
+
+  if (firstMeaningfulEdit) {
+    await notifyBudgetStarted({
+      budgetId: uuid,
+      name: data.name,
+      changeCount: Object.keys(allocations).length,
+    });
+  }
 }
 
 /**
@@ -89,6 +115,13 @@ export async function submitBudget(
   });
   revalidatePath(`/budget/${uuid}`);
   revalidatePath(`/budget/${uuid}/review`);
+
+  await notifyBudgetSubmitted({
+    budgetId: uuid,
+    name: data.name,
+    tagline: data.tagline,
+    changeCount: Object.keys(data.allocations ?? {}).length,
+  });
 }
 
 /** A saved outcome for a department in a budget. */

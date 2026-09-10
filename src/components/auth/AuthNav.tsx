@@ -1,4 +1,4 @@
-"use client";
+// "use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -40,6 +40,9 @@ export default function AuthNav({ user }: { user: AuthNavUser | null }) {
         gap: "1rem",
       }}
     >
+      <Link style={linkStyle} href="/featured-budgets">
+        Featured budgets
+      </Link>
       {user ? (
         <>
           {user.isAdmin && (

@@ -46,3 +46,109 @@ export async function sendPasswordResetEmail({
   // The SDK returns errors rather than throwing.
   if (error) throw new Error(`Failed to send reset email: ${error.message}`);
 }
+
+/** Absolute base URL for links in notification emails. */
+function baseUrl(): string {
+  return (
+    process.env.BETTER_AUTH_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000")
+  );
+}
+
+/**
+ * Sends one notification to every configured admin.
+ *
+ * Notifications are best-effort: a mail failure must never break the action
+ * that triggered it, so this resolves rather than throwing, and logs instead
+ * of sending when no Resend key is configured.
+ */
+async function notifyAdmins({
+  subject,
+  html,
+  text,
+}: {
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<void> {
+  const { parseAdminEmails } = await import("@/src/lib/admin");
+  const to = parseAdminEmails(process.env.ADMIN_EMAILS);
+  if (to.length === 0) return;
+
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[dev] Admin notification to ${to.join(", ")}: ${subject}`);
+    return;
+  }
+
+  try {
+    const { error } = await resend().emails.send({
+      from: FROM,
+      to,
+      subject,
+      html,
+      text,
+    });
+    if (error) {
+      console.error(`Admin notification failed: ${error.message}`);
+    }
+  } catch (err) {
+    console.error("Admin notification failed:", err);
+  }
+}
+
+/**
+ * Notifies admins the first time someone actually moves money in a budget.
+ * Visiting /start creates an empty budget and most are abandoned, so the
+ * first allocation — not creation — is the signal worth an email.
+ */
+export async function notifyBudgetStarted({
+  budgetId,
+  name,
+  changeCount,
+}: {
+  budgetId: string;
+  name?: string;
+  changeCount: number;
+}): Promise<void> {
+  const url = `${baseUrl()}/budget/${budgetId}/edit`;
+  const title = name?.trim() || "Untitled budget";
+  const depts = `${changeCount} department${changeCount === 1 ? "" : "s"} changed`;
+  await notifyAdmins({
+    subject: `Budget started: ${title} (${budgetId})`,
+    html: `
+      <p>Someone started working on <strong>${title}</strong>.</p>
+      <p>${depts} so far.</p>
+      <p><a href="${url}">${url}</a></p>
+    `,
+    text: `Someone started working on ${title}.\n${depts} so far.\n\n${url}`,
+  });
+}
+
+/** Notifies admins that a budget was submitted, with a little context. */
+export async function notifyBudgetSubmitted({
+  budgetId,
+  name,
+  tagline,
+  changeCount,
+}: {
+  budgetId: string;
+  name?: string;
+  tagline?: string;
+  changeCount: number;
+}): Promise<void> {
+  const url = `${baseUrl()}/budget/${budgetId}`;
+  const title = name?.trim() || "Untitled budget";
+  const depts = `${changeCount} department${changeCount === 1 ? "" : "s"} changed`;
+  await notifyAdmins({
+    subject: `Budget submitted: ${title} (${budgetId})`,
+    html: `
+      <p><strong>${title}</strong> was submitted.</p>
+      ${tagline?.trim() ? `<p><em>${tagline.trim()}</em></p>` : ""}
+      <p>${depts}</p>
+      <p><a href="${url}">${url}</a></p>
+    `,
+    text: `${title} was submitted.\n${tagline?.trim() ? tagline.trim() + "\n" : ""}${depts}\n\n${url}`,
+  });
+}

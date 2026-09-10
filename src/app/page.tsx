@@ -1,12 +1,18 @@
 import Image from "next/image";
 import budgetviz from "@/src/assets/budgetvisual.jpg";
 import Link from "next/link";
+import FeaturedBudgetList, {
+  getFeaturedBudgets,
+} from "@/src/components/FeaturedBudgetList";
 
 export const metadata = {
   title: "Make your own Philly Budget",
 };
 
-export default function Home() {
+export default async function Home() {
+  // A teaser: the full list lives at /featured-budgets.
+  const featured = await getFeaturedBudgets(3);
+
   return (
     <main className="mx-auto max-w-7xl px-4 pt-20 pb-10 sm:px-6 lg:px-8 lg:pt-5">
       <div className="md:flex">
@@ -42,6 +48,25 @@ export default function Home() {
           </Link>
         </div>
       </div>
+
+      {featured.length > 0 && false && (
+        <section className="mt-16">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-3xl">Featured budgets</h2>
+            <Link
+              href="/featured-budgets"
+              className="text-sm font-semibold text-blue-800 hover:underline"
+            >
+              See all →
+            </Link>
+          </div>
+          <p className="py-3 text-neutral-600">
+            Budgets from Philadelphians who reimagined how the city spends its
+            General Fund.
+          </p>
+          <FeaturedBudgetList budgets={featured} />
+        </section>
+      )}
     </main>
   );
 }

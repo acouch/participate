@@ -80,8 +80,14 @@ model Budget {
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  // Admin-curated: set when a budget is highlighted on /featured-budgets.
+  // A real column, not a field in `data`, so the budget's own editor cannot
+  // overwrite it when saving.
+  featuredAt DateTime?
+
   @@map("budget")
   @@index([userId])
+  @@index([featuredAt])
   outcomes Outcome[]
 }
 

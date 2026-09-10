@@ -4,6 +4,10 @@ export default function Footer() {
       <div className="mx-auto w-full max-w-screen-xl">
         <div className="bg-neutral-secondary-soft px-4 py-12 md:flex md:items-center">
           <span className="text-body text-sm sm:text-center">
+            <a href="/featured-budgets">Featured budgets</a>
+          </span>
+          <span className="ms-5">|</span>
+          <span className="text-body ms-5 text-sm sm:text-center">
             <a href="https://phillybudget.org/#about">About this website</a>
           </span>
           <span className="ms-5">|</span>

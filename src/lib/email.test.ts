@@ -119,3 +119,86 @@ describe("sendPasswordResetEmail with an API key", () => {
     ).rejects.toThrow("domain not verified");
   });
 });
+
+describe("admin notifications", () => {
+  beforeEach(() => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.ADMIN_EMAILS = "admin@example.com, second@example.com";
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.BETTER_AUTH_URL = "https://budget.example";
+  });
+
+  it("emails every configured admin on the first meaningful edit", async () => {
+    const { notifyBudgetStarted } = await load();
+    await notifyBudgetStarted({ budgetId: "abc12", changeCount: 2 });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    const payload = send.mock.calls[0][0];
+    expect(payload.to).toEqual(["admin@example.com", "second@example.com"]);
+    expect(payload.subject).toContain("abc12");
+    expect(payload.html).toContain("https://budget.example/budget/abc12/edit");
+    expect(payload.html).toContain("2 departments changed");
+  });
+
+  it("includes the name, tagline and change count on submission", async () => {
+    const { notifyBudgetSubmitted } = await load();
+    await notifyBudgetSubmitted({
+      budgetId: "abc12",
+      name: "Mayor Ada",
+      tagline: "Safer streets",
+      changeCount: 3,
+    });
+
+    const payload = send.mock.calls[0][0];
+    expect(payload.subject).toContain("Mayor Ada");
+    expect(payload.html).toContain("Safer streets");
+    expect(payload.html).toContain("3 departments changed");
+    expect(payload.html).toContain("https://budget.example/budget/abc12");
+  });
+
+  it("singularizes a single changed department", async () => {
+    const { notifyBudgetSubmitted } = await load();
+    await notifyBudgetSubmitted({ budgetId: "abc12", changeCount: 1 });
+    expect(send.mock.calls[0][0].html).toContain("1 department changed");
+  });
+
+  it("falls back to a placeholder when the budget has no name", async () => {
+    const { notifyBudgetSubmitted } = await load();
+    await notifyBudgetSubmitted({ budgetId: "abc12", changeCount: 0 });
+    expect(send.mock.calls[0][0].subject).toContain("Untitled budget");
+  });
+
+  it("sends nothing when no admins are configured", async () => {
+    // Without this guard Resend would be called with an empty recipient list.
+    process.env.ADMIN_EMAILS = "";
+    const { notifyBudgetStarted } = await load();
+    await notifyBudgetStarted({ budgetId: "abc12", changeCount: 1 });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("never throws when sending fails", async () => {
+    // A notification failure must not break budget creation or submission.
+    send.mockRejectedValue(new Error("resend is down"));
+    const { notifyBudgetStarted } = await load();
+    await expect(
+      notifyBudgetStarted({ budgetId: "abc12", changeCount: 1 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("never throws when Resend reports an error", async () => {
+    send.mockResolvedValue({ data: null, error: { message: "bad domain" } });
+    const { notifyBudgetSubmitted } = await load();
+    await expect(
+      notifyBudgetSubmitted({ budgetId: "abc12", changeCount: 0 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("logs instead of sending when no API key is set", async () => {
+    delete process.env.RESEND_API_KEY;
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { notifyBudgetStarted } = await load();
+    await notifyBudgetStarted({ budgetId: "abc12", changeCount: 1 });
+    expect(send).not.toHaveBeenCalled();
+    expect(log.mock.calls[0]?.join(" ")).toContain("admin@example.com");
+  });
+});

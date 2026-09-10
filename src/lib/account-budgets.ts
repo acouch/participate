@@ -6,6 +6,8 @@ export interface StoredBudget {
   createdAt: Date;
   updatedAt: Date;
   data: unknown;
+  /** Set by an admin when the budget is highlighted publicly. */
+  featuredAt?: Date | null;
 }
 
 /** One row in the account page's budget list. */
@@ -21,6 +23,8 @@ export interface BudgetSummary {
   changeCount: number;
   createdAt: Date;
   updatedAt: Date;
+  /** Whether an admin has highlighted this budget. */
+  featured: boolean;
 }
 
 /** Shown in place of a name the user never set. */
@@ -51,6 +55,7 @@ export function summarizeBudget(budget: StoredBudget): BudgetSummary {
     changeCount: Object.keys(data.allocations ?? {}).length,
     createdAt: budget.createdAt,
     updatedAt: budget.updatedAt,
+    featured: Boolean(budget.featuredAt),
   };
 }
 
@@ -70,4 +75,87 @@ export function budgetHref(summary: BudgetSummary): string {
   return summary.submitted
     ? `/budget/${summary.id}`
     : `/budget/${summary.id}/edit`;
+}
+
+/** Columns the admin table can sort by. */
+export type SortKey = "name" | "status" | "changed" | "updated";
+export type SortDirection = "asc" | "desc";
+
+/** The direction each column starts in when first clicked. */
+export const DEFAULT_SORT_DIRECTION: Record<SortKey, SortDirection> = {
+  // Text reads naturally A→Z; the numeric and date columns are most useful
+  // showing the largest or most recent first.
+  name: "asc",
+  status: "asc",
+  changed: "desc",
+  updated: "desc",
+};
+
+/**
+ * Sorts budgets by one column. Ties fall back to most-recently-updated so the
+ * order stays stable and predictable when many rows share a value.
+ */
+export function sortBudgetsBy<T extends BudgetSummary>(
+  budgets: T[],
+  key: SortKey,
+  direction: SortDirection,
+): T[] {
+  const sign = direction === "asc" ? 1 : -1;
+
+  const compare = (a: T, b: T): number => {
+    switch (key) {
+      case "name":
+        return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+      case "status":
+        // Drafts before submitted when ascending.
+        return Number(a.submitted) - Number(b.submitted);
+      case "changed":
+        return a.changeCount - b.changeCount;
+      case "updated":
+        return a.updatedAt.getTime() - b.updatedAt.getTime();
+    }
+  };
+
+  return [...budgets].sort((a, b) => {
+    const primary = compare(a, b);
+    if (primary !== 0) return primary * sign;
+    // Stable tiebreak, independent of the chosen direction.
+    return b.updatedAt.getTime() - a.updatedAt.getTime();
+  });
+}
+
+/** Status filter values for the admin list. */
+export type StatusFilter = "all" | "draft" | "submitted";
+/** "Changed" filter: any, untouched, or edited at least once. */
+export type ChangedFilter = "all" | "none" | "some";
+
+/** Whether a budget passes the status filter. */
+export function matchesStatus(
+  budget: Pick<BudgetSummary, "submitted">,
+  filter: StatusFilter,
+): boolean {
+  if (filter === "all") return true;
+  return filter === "submitted" ? budget.submitted : !budget.submitted;
+}
+
+/** Whether a budget passes the "departments changed" filter. */
+export function matchesChanged(
+  budget: Pick<BudgetSummary, "changeCount">,
+  filter: ChangedFilter,
+): boolean {
+  if (filter === "all") return true;
+  return filter === "some" ? budget.changeCount > 0 : budget.changeCount === 0;
+}
+
+/**
+ * Whether a budget passes the owner filter. "all" matches everything and
+ * "anonymous" matches budgets with no owner; anything else is an exact email.
+ */
+export function matchesOwner(
+  ownerEmail: string | null,
+  filter: string,
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "anonymous") return ownerEmail === null;
+  return (ownerEmail ?? "").toLowerCase() === filter.toLowerCase();
 }

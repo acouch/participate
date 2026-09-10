@@ -4,7 +4,12 @@ import { prisma } from "@/src/lib/prisma";
 import { getCurrentUser } from "@/src/lib/session";
 import { isAdmin } from "@/src/lib/admin";
 import { sortBudgets, summarizeBudget } from "@/src/lib/account-budgets";
-import { deleteBudget, renameBudget } from "@/src/app/account/actions";
+import {
+  deleteBudget,
+  deleteBudgets,
+  renameBudget,
+  setBudgetFeatured,
+} from "@/src/app/account/actions";
 
 export const metadata = {
   title: "All budgets",
@@ -21,6 +26,7 @@ export default async function AdminPage() {
       createdAt: true,
       updatedAt: true,
       data: true,
+      featuredAt: true,
       user: { select: { email: true } },
     },
     orderBy: { updatedAt: "desc" },
@@ -32,7 +38,7 @@ export default async function AdminPage() {
   }));
 
   return (
-    <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div className="hero" style={{ marginBottom: "2rem" }}>
         <h1>All budgets</h1>
         <p className="lede" style={{ fontSize: "1rem" }}>
@@ -45,6 +51,8 @@ export default async function AdminPage() {
         budgets={budgets}
         onRename={renameBudget}
         onDelete={deleteBudget}
+        onDeleteMany={deleteBudgets}
+        onSetFeatured={setBudgetFeatured}
       />
     </main>
   );
