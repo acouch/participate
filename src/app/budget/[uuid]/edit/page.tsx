@@ -3,6 +3,7 @@ import BudgetEditor from "@/src/components/BudgetEditor";
 import { prisma } from "@/src/lib/prisma";
 import { getCurrentUser } from "@/src/lib/session";
 import { claimBudgetForUser, canEditBudget } from "@/src/lib/budget-ownership";
+import { isAdmin } from "@/src/lib/admin";
 import {
   getEditableFund,
   FISCAL_YEAR,
@@ -54,7 +55,11 @@ export default async function EditPage({ params }: EditPageProps) {
   // A budget with an owner is editable only by that owner; unowned budgets
   // stay open to anyone with the link. Non-owners get the read-only view.
   if (
-    !canEditBudget({ currentUserId: user?.id ?? null, ownerId: budget.userId })
+    !canEditBudget({
+      currentUserId: user?.id ?? null,
+      ownerId: budget.userId,
+      isAdmin: isAdmin(user?.email),
+    })
   ) {
     redirect(`/budget/${uuid}`);
   }

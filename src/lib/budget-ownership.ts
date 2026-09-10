@@ -3,17 +3,22 @@
  *
  * Unowned budgets stay open to anyone with the link, which keeps the
  * anonymous /start flow and every budget made before accounts existed
- * working. Once a budget has an owner, only that owner may change it.
+ * working. Once a budget has an owner, only that owner — or an admin — may
+ * change it.
  */
 export function canEditBudget({
   currentUserId,
   ownerId,
+  isAdmin = false,
 }: {
   /** The signed-in user's id, or null when signed out. */
   currentUserId: string | null;
   /** The budget's owner, or null when unowned. */
   ownerId: string | null;
+  /** Admins may edit and delete any budget. */
+  isAdmin?: boolean;
 }): boolean {
+  if (isAdmin) return true;
   if (ownerId === null) return true;
   return currentUserId === ownerId;
 }

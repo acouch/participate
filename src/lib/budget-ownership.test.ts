@@ -140,3 +140,38 @@ describe("canEditBudget", () => {
     );
   });
 });
+
+describe("canEditBudget for admins", () => {
+  it("lets an admin edit a budget owned by someone else", () => {
+    expect(
+      canEditBudget({
+        currentUserId: "admin-1",
+        ownerId: "user-1",
+        isAdmin: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("lets an admin edit an unowned budget", () => {
+    expect(
+      canEditBudget({ currentUserId: "admin-1", ownerId: null, isAdmin: true }),
+    ).toBe(true);
+  });
+
+  it("still denies a non-admin on someone else's budget", () => {
+    // Guards against the flag defaulting to true or leaking across callers.
+    expect(
+      canEditBudget({
+        currentUserId: "user-2",
+        ownerId: "user-1",
+        isAdmin: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("denies when the flag is omitted entirely", () => {
+    expect(canEditBudget({ currentUserId: "user-2", ownerId: "user-1" })).toBe(
+      false,
+    );
+  });
+});

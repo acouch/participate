@@ -1,6 +1,7 @@
 import { prisma } from "@/src/lib/prisma";
 import { getCurrentUser } from "@/src/lib/session";
 import { canEditBudget } from "@/src/lib/budget-ownership";
+import { isAdmin as isAdminEmail } from "@/src/lib/admin";
 
 /**
  * Resolves whether the current visitor may edit a budget, reading both the
@@ -9,6 +10,7 @@ import { canEditBudget } from "@/src/lib/budget-ownership";
 export async function getBudgetAccess(budgetId: string): Promise<{
   exists: boolean;
   canEdit: boolean;
+  isAdmin: boolean;
   ownerId: string | null;
   currentUserId: string | null;
 }> {
@@ -21,12 +23,24 @@ export async function getBudgetAccess(budgetId: string): Promise<{
   ]);
 
   const currentUserId = user?.id ?? null;
+  const admin = isAdminEmail(user?.email);
   if (!budget) {
-    return { exists: false, canEdit: false, ownerId: null, currentUserId };
+    return {
+      exists: false,
+      canEdit: false,
+      isAdmin: admin,
+      ownerId: null,
+      currentUserId,
+    };
   }
   return {
     exists: true,
-    canEdit: canEditBudget({ currentUserId, ownerId: budget.userId }),
+    canEdit: canEditBudget({
+      currentUserId,
+      ownerId: budget.userId,
+      isAdmin: admin,
+    }),
+    isAdmin: admin,
     ownerId: budget.userId,
     currentUserId,
   };

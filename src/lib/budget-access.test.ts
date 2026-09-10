@@ -9,6 +9,9 @@ vi.mock("@/src/lib/prisma", () => ({
 vi.mock("@/src/lib/session", () => ({
   getCurrentUser: () => getCurrentUser(),
 }));
+vi.mock("@/src/lib/admin", () => ({
+  isAdmin: (email: string | null | undefined) => email === "admin@example.com",
+}));
 
 const { assertCanEditBudget, getBudgetAccess } =
   await import("./budget-access");
@@ -92,6 +95,41 @@ describe("assertCanEditBudget", () => {
   it("throws for a budget that does not exist", async () => {
     findUnique.mockResolvedValue(null);
     getCurrentUser.mockResolvedValue({ id: "user-1" });
+    await expect(assertCanEditBudget("nope1")).rejects.toThrow("not found");
+  });
+});
+
+describe("admin access", () => {
+  it("lets an admin edit a budget owned by someone else", async () => {
+    findUnique.mockResolvedValue({ userId: "user-1" });
+    getCurrentUser.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+    });
+    const access = await getBudgetAccess("abc12");
+    expect(access).toMatchObject({ canEdit: true, isAdmin: true });
+    await expect(assertCanEditBudget("abc12")).resolves.toBeUndefined();
+  });
+
+  it("still blocks a signed-in non-admin", async () => {
+    findUnique.mockResolvedValue({ userId: "user-1" });
+    getCurrentUser.mockResolvedValue({
+      id: "user-2",
+      email: "someone@example.com",
+    });
+    const access = await getBudgetAccess("abc12");
+    expect(access).toMatchObject({ canEdit: false, isAdmin: false });
+    await expect(assertCanEditBudget("abc12")).rejects.toThrow(
+      "belongs to someone else",
+    );
+  });
+
+  it("does not let an admin edit a budget that does not exist", async () => {
+    findUnique.mockResolvedValue(null);
+    getCurrentUser.mockResolvedValue({
+      id: "admin-1",
+      email: "admin@example.com",
+    });
     await expect(assertCanEditBudget("nope1")).rejects.toThrow("not found");
   });
 });

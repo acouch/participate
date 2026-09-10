@@ -8,6 +8,8 @@ import { signOut } from "@/src/lib/auth-client";
 export interface AuthNavUser {
   name: string;
   email: string;
+  /** Admins get a link to the all-budgets page. */
+  isAdmin?: boolean;
 }
 
 const linkStyle: React.CSSProperties = {
@@ -40,6 +42,11 @@ export default function AuthNav({ user }: { user: AuthNavUser | null }) {
     >
       {user ? (
         <>
+          {user.isAdmin && (
+            <Link href="/admin" style={linkStyle}>
+              Admin
+            </Link>
+          )}
           <Link href="/account" style={linkStyle}>
             {user.name}
           </Link>

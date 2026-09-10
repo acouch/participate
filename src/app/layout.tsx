@@ -4,6 +4,7 @@ import Menu from "@/src/components/Menu";
 import Footer from "@/src/components/Footer";
 import FeedbackWidget from "@/src/components/FeedbackWidget";
 import { getCurrentUser } from "@/src/lib/session";
+import { isAdmin } from "@/src/lib/admin";
 import appleTouchIcon from "@/src/assets/favicon/apple-touch-icon.png";
 import favicon16 from "@/src/assets/favicon/favicon-16x16.png";
 import favicon32 from "@/src/assets/favicon/favicon-32x32.png";
@@ -41,7 +42,15 @@ export default async function RootLayout({
         ></link>
       </head>
       <body>
-        <Menu user={user && { name: user.name, email: user.email }} />
+        <Menu
+          user={
+            user && {
+              name: user.name,
+              email: user.email,
+              isAdmin: isAdmin(user.email),
+            }
+          }
+        />
         {children}
         <Footer />
         <FeedbackWidget />

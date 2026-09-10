@@ -3,6 +3,7 @@ import BudgetReview from "@/src/components/BudgetReview";
 import { prisma } from "@/src/lib/prisma";
 import { getCurrentUser } from "@/src/lib/session";
 import { canEditBudget } from "@/src/lib/budget-ownership";
+import { isAdmin } from "@/src/lib/admin";
 import { buildLineItems } from "@/src/lib/budget-math";
 import {
   getEditableFund,
@@ -45,7 +46,11 @@ export default async function ReviewPage({ params }: ReviewPageProps) {
 
   // Only the owner may review (and submit) an owned budget.
   if (
-    !canEditBudget({ currentUserId: user?.id ?? null, ownerId: budget.userId })
+    !canEditBudget({
+      currentUserId: user?.id ?? null,
+      ownerId: budget.userId,
+      isAdmin: isAdmin(user?.email),
+    })
   ) {
     redirect(`/budget/${uuid}`);
   }
